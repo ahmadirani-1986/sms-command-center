@@ -57,10 +57,13 @@ function NewTestPage() {
   const navigate = useNavigate();
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [templates, setTemplates] = useState<RawTemplate[]>([]);
   const [allowed, setAllowed] = useState<Set<string>>(new Set());
 
   const [name, setName] = useState("");
+  const [apiMode, setApiMode] = useState<ApiMode>("profile");
   const [profileId, setProfileId] = useState<string>("");
+  const [templateId, setTemplateId] = useState<string>("");
   const [mode, setMode] = useState<Mode>("dry_run");
   const [message, setMessage] = useState("");
   const [senderId, setSenderId] = useState("");
@@ -73,17 +76,23 @@ function NewTestPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: p } = await supabase.from("sms_api_profiles")
-        .select("id,name,base_url,send_sms_path,auth_header_name,credential_mode,credential_secret_name,is_active")
-        .eq("is_active", true).order("name");
+      const [{ data: p }, { data: t }, { data: a }] = await Promise.all([
+        supabase.from("sms_api_profiles")
+          .select("id,name,base_url,send_sms_path,auth_header_name,credential_mode,credential_secret_name,is_active")
+          .eq("is_active", true).order("name"),
+        supabase.from("sms_raw_templates")
+          .select("id,name,raw_curl,base_url,credential_mode,credential_secret_name,is_active")
+          .eq("is_active", true).order("name"),
+        supabase.from("sms_test_allowed_numbers").select("phone_normalized").eq("is_active", true),
+      ]);
       setProfiles((p ?? []) as Profile[]);
-      const { data: a } = await supabase.from("sms_test_allowed_numbers")
-        .select("phone_normalized").eq("is_active", true);
+      setTemplates((t ?? []) as RawTemplate[]);
       setAllowed(new Set((a ?? []).map((x: { phone_normalized: string }) => x.phone_normalized)));
     })();
   }, []);
 
   const profile = profiles.find((p) => p.id === profileId);
+  const template = templates.find((t) => t.id === templateId);
 
   const recipients: Recipient[] = useMemo(() => {
     const seen = new Set<string>();
