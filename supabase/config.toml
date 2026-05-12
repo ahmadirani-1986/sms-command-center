@@ -1,1 +1,4 @@
 project_id = "kqiqotbhynmifrphcnqu"
+
+[functions.test-api-profile]
+verify_jwt = true
