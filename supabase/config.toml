@@ -11,3 +11,9 @@ verify_jwt = true
 
 [functions.stop-sms-test-run]
 verify_jwt = true
+
+[functions.check-dlr-status]
+verify_jwt = true
+
+[functions.run-sender-experiment]
+verify_jwt = true
