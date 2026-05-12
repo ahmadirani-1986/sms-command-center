@@ -133,28 +133,33 @@ function NewTestPage() {
   }, [senderKey, senderId, customKey]);
 
   const canCreate =
-    !creating && !!name.trim() && !!profileId && !!message && eligibleCount > 0 && !senderError;
+    !creating && !!name.trim() && !!message && eligibleCount > 0 && !senderError &&
+    (apiMode === "profile" ? !!profileId : !!templateId);
 
-  // Restrict operators from manual_token profiles
-  const profileBlockedForOperator =
-    profile?.credential_mode === "manual_token" && !isAdmin;
+  // Restrict operators from manual_token profiles/templates
+  const credMode = apiMode === "profile" ? profile?.credential_mode : template?.credential_mode;
+  const profileBlockedForOperator = credMode === "manual_token" && !isAdmin;
 
   async function handleCreateAndProceed() {
     if (!canCreate) return;
     if (profileBlockedForOperator) {
-      toast.error("Manual Token profiles are admin-only");
+      toast.error("Manual Token mode is admin-only");
       return;
     }
     setCreating(true);
     try {
       const { data, error } = await invokeFn<{ ok: boolean; run_id: string }>("create-test-run", {
         name: name.trim(),
-        api_profile_id: profileId,
+        api_mode: apiMode,
+        api_profile_id: apiMode === "profile" ? profileId : null,
+        raw_template_id: apiMode === "raw_template" ? templateId : null,
         mode,
         message_body: message,
-        sender_id: senderKey === "none" ? null : senderId.trim(),
-        sender_field_key: senderKey,
-        custom_sender_field_key: senderKey === "custom" ? customKey.trim() : null,
+        sender_id: apiMode === "raw_template"
+          ? (senderId.trim() || null)
+          : (senderKey === "none" ? null : senderId.trim()),
+        sender_field_key: apiMode === "raw_template" ? "none" : senderKey,
+        custom_sender_field_key: apiMode === "profile" && senderKey === "custom" ? customKey.trim() : null,
         recipients: recipients.map((r) => r.raw),
         max_send_limit: load.total_request_limit,
         batch_size: load.batch_size,
