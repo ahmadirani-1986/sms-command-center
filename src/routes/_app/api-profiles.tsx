@@ -561,8 +561,14 @@ function TestProfileDialog({
       setResult(payload);
       const ok = (payload as { ok?: boolean })?.ok;
       const errMsg = (payload as { error?: string })?.error;
-      if (ok) toast.success("API responded successfully");
-      else toast.error(errMsg ?? "Test failed");
+      const credits = (payload as { credits?: number | null })?.credits;
+      if (ok) {
+        toast.success(
+          credits != null
+            ? `API responded successfully — Credits: ${credits}`
+            : "API responded successfully",
+        );
+      } else toast.error(errMsg ?? "Test failed");
       onTested();
     } finally {
       setRunning(false);
