@@ -2,6 +2,12 @@
 // Token resolution:
 //   - backend_secret mode: read from Deno.env.get(credential_secret_name)
 //   - manual_token mode (admin only): use provided token from request body, never store/log it.
+//
+// Error handling philosophy: for any *handled* failure (missing secret, external
+// API non-2xx, network failure) we return HTTP 200 with { ok: false, error, ... }
+// so the JSON body reaches the browser. The Supabase client otherwise surfaces
+// only "Edge Function returned a non-2xx status code" and swallows the body.
+// Non-200 is reserved for auth/permission failures.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const corsHeaders = {
@@ -13,140 +19,185 @@ const corsHeaders = {
 const REDACT = "[REDACTED]";
 
 function redactToken(text: string, token?: string | null): string {
-  if (!token) return text;
+  if (!text || !token) return text;
+  try { return text.split(token).join(REDACT); } catch { return text; }
+}
+
+function parseApiError(body: string): string | null {
   try {
-    return text.split(token).join(REDACT);
-  } catch {
-    return text;
-  }
+    const j = JSON.parse(body);
+    return (
+      j?.error?.message ?? j?.error ?? j?.message ?? j?.detail ?? j?.errors?.[0]?.message ?? null
+    );
+  } catch { return null; }
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  let manualToken: string | null = null; // kept only in this scope, never logged
+  let manualToken: string | null = null;
 
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
-    if (!authHeader.startsWith("Bearer ")) {
-      return json({ error: "Unauthorized" }, 401);
-    }
+    if (!authHeader.startsWith("Bearer ")) return json({ ok: false, error: "Unauthorized" }, 401);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // user-scoped client (resolves auth.uid via RLS)
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: userData, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userData.user) return json({ error: "Unauthorized" }, 401);
+    if (userErr || !userData.user) return json({ ok: false, error: "Unauthorized" }, 401);
     const userId = userData.user.id;
     const userEmail = userData.user.email ?? null;
 
-    // service client (audit insert, profile lookup)
     const admin = createClient(supabaseUrl, serviceKey);
 
     const body = await req.json().catch(() => ({}));
     const profileId: string | undefined = body.profile_id;
-    manualToken = typeof body.manual_token === "string" && body.manual_token.length > 0 ? body.manual_token : null;
-    if (!profileId) return json({ error: "profile_id required" }, 400);
+    manualToken = typeof body.manual_token === "string" && body.manual_token.length > 0
+      ? body.manual_token : null;
+    if (!profileId) return json({ ok: false, error: "profile_id is required" }, 200);
 
     const { data: profile, error: pErr } = await admin
       .from("sms_api_profiles")
       .select("id,name,base_url,credits_path,credits_method,auth_header_name,auth_type,credential_mode,credential_secret_name")
       .eq("id", profileId)
       .single();
-    if (pErr || !profile) return json({ error: "Profile not found" }, 404);
+    if (pErr || !profile) return json({ ok: false, error: "Profile not found" }, 200);
 
-    // Resolve token based on mode
+    // Resolve token
     let token: string | null = null;
-    if (profile.credential_mode === "manual_token") {
-      // admin only
-      const { data: roleRows } = await admin
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-      const isAdmin = (roleRows ?? []).some((r: { role: string }) => r.role === "admin");
-      if (!isAdmin) return json({ error: "Manual token mode is admin-only" }, 403);
-      if (!manualToken) return json({ error: "manual_token required for manual_token mode" }, 400);
-      token = manualToken;
+    let secretFound = false;
+    const secretName = profile.credential_secret_name as string | null;
 
-      // audit (no token value)
+    if (profile.credential_mode === "manual_token") {
+      const { data: roleRows } = await admin
+        .from("user_roles").select("role").eq("user_id", userId);
+      const isAdmin = (roleRows ?? []).some((r: { role: string }) => r.role === "admin");
+      if (!isAdmin) return json({ ok: false, error: "Manual token mode is admin-only" }, 403);
+      if (!manualToken) {
+        return json({ ok: false, error: "Manual token is required for manual_token mode" }, 200);
+      }
+      token = manualToken;
+      secretFound = true;
+
       await admin.from("audit_logs").insert({
-        actor_id: userId,
-        actor_email: userEmail,
+        actor_id: userId, actor_email: userEmail,
         action: "api_profile.tested_manual_token",
-        entity_type: "sms_api_profile",
-        entity_id: profile.id,
+        entity_type: "sms_api_profile", entity_id: profile.id,
         details: { profile_name: profile.name },
       });
     } else {
-      const secretName = profile.credential_secret_name;
-      if (!secretName) return json({ error: "Profile is missing credential_secret_name" }, 400);
-      token = Deno.env.get(secretName) ?? null;
-      if (!token) {
+      if (!secretName) {
+        console.error("[test-api-profile] missing credential_secret_name", { profile_id: profile.id });
         return json({
-          error: `Backend secret '${secretName}' is not configured`,
-        }, 400);
+          ok: false,
+          error: "Profile is missing credential_secret_name. Set the secret name in the profile config.",
+        }, 200);
       }
+      const v = Deno.env.get(secretName);
+      if (!v || v.length === 0) {
+        console.error("[test-api-profile] backend secret not found", {
+          profile_id: profile.id, secret_name: secretName, secret_found: false,
+        });
+        return json({
+          ok: false,
+          error: `Backend secret ${secretName} was not found. Please add it in Lovable Cloud → Secrets.`,
+          missing_secret: secretName,
+        }, 200);
+      }
+      token = v;
+      secretFound = true;
 
       await admin.from("audit_logs").insert({
-        actor_id: userId,
-        actor_email: userEmail,
+        actor_id: userId, actor_email: userEmail,
         action: "api_profile.tested_backend_secret",
-        entity_type: "sms_api_profile",
-        entity_id: profile.id,
+        entity_type: "sms_api_profile", entity_id: profile.id,
         details: { profile_name: profile.name, secret_name: secretName },
       });
     }
 
-    // Build target URL
     const base = profile.base_url.replace(/\/+$/, "");
     const path = profile.credits_path.startsWith("/") ? profile.credits_path : `/${profile.credits_path}`;
     const url = `${base}${path}`;
 
-    // Build auth header
     const headers: Record<string, string> = { Accept: "application/json" };
     const headerName = profile.auth_header_name || "X-API-Key";
-    if (profile.auth_type === "Bearer Token") {
-      headers["Authorization"] = `Bearer ${token}`;
-    } else {
-      headers[headerName] = token;
-    }
+    if (profile.auth_type === "Bearer Token") headers["Authorization"] = `Bearer ${token}`;
+    else headers[headerName] = token;
+
+    console.log("[test-api-profile] calling credits endpoint", {
+      profile_id: profile.id,
+      base_url: profile.base_url,
+      credits_path: profile.credits_path,
+      credential_mode: profile.credential_mode,
+      secret_name: secretName ?? null,
+      secret_found: secretFound,
+      auth_type: profile.auth_type,
+      auth_header_name: headerName,
+    });
 
     const start = Date.now();
     let httpStatus = 0;
     let responseText = "";
     let parsed: unknown = null;
     try {
-      const resp = await fetch(url, {
-        method: profile.credits_method || "GET",
-        headers,
-      });
+      const resp = await fetch(url, { method: profile.credits_method || "GET", headers });
       httpStatus = resp.status;
       responseText = await resp.text();
       try { parsed = JSON.parse(responseText); } catch { parsed = null; }
     } catch (e) {
-      const msg = redactToken(String(e?.message ?? e), token);
+      const latency = Date.now() - start;
+      const msg = redactToken(String((e as Error)?.message ?? e), token);
+      console.error("[test-api-profile] network error", {
+        profile_id: profile.id, url, latency_ms: latency, error: msg,
+      });
       return json({
         ok: false,
-        error: `Network error: ${msg}`,
-        latency_ms: Date.now() - start,
+        error: `Network error reaching ${url}: ${msg}`,
+        api_url: url,
+        latency_ms: latency,
       }, 200);
     }
     const latency = Date.now() - start;
+    const safeBody = redactToken(responseText.slice(0, 4000), token);
 
-    // Extract common fields if present (best-effort)
+    console.log("[test-api-profile] credits endpoint response", {
+      profile_id: profile.id,
+      base_url: profile.base_url,
+      credits_path: profile.credits_path,
+      credential_mode: profile.credential_mode,
+      secret_name: secretName ?? null,
+      secret_found: secretFound,
+      external_http_status: httpStatus,
+      latency_ms: latency,
+    });
+
+    if (httpStatus < 200 || httpStatus >= 300) {
+      const parsedMsg = parseApiError(safeBody);
+      const composed = `Credits API returned HTTP ${httpStatus}` +
+        (parsedMsg ? ` — ${parsedMsg}` : "");
+      return json({
+        ok: false,
+        error: composed,
+        http_status: httpStatus,
+        api_url: url,
+        api_method: profile.credits_method || "GET",
+        parsed_error: parsedMsg,
+        response_preview: safeBody,
+        latency_ms: latency,
+      }, 200);
+    }
+
     const p = (parsed ?? {}) as Record<string, unknown>;
     const credits = (p.credits ?? p.balance ?? p.wallet_balance ?? null) as number | null;
     const walletId = (p.wallet_id ?? p.walletId ?? null) as string | null;
     const tenantId = (p.tenant_id ?? p.tenantId ?? null) as string | null;
     const apiUserId = (p.user_id ?? p.userId ?? null) as string | null;
 
-    // Update last_tested_at + cached fields (only on backend_secret mode, to avoid
-    // suggesting that manual-token tests are persisted; still fine to update last_tested_at).
     await admin.from("sms_api_profiles").update({
       last_tested_at: new Date().toISOString(),
       last_credits: typeof credits === "number" ? credits : null,
@@ -155,11 +206,10 @@ Deno.serve(async (req) => {
       user_id: apiUserId,
     }).eq("id", profile.id);
 
-    const safeBody = redactToken(responseText.slice(0, 4000), token);
-
     return json({
-      ok: httpStatus >= 200 && httpStatus < 300,
+      ok: true,
       http_status: httpStatus,
+      api_url: url,
       latency_ms: latency,
       credits,
       wallet_id: walletId,
@@ -168,9 +218,9 @@ Deno.serve(async (req) => {
       response_preview: safeBody,
     }, 200);
   } catch (e) {
-    const msg = redactToken(String(e?.message ?? e), manualToken);
-    console.error("test-api-profile error:", msg);
-    return json({ error: msg }, 500);
+    const msg = redactToken(String((e as Error)?.message ?? e), manualToken);
+    console.error("[test-api-profile] unhandled error:", msg);
+    return json({ ok: false, error: `Unexpected: ${msg}` }, 200);
   }
 });
 
