@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSenderExperimentsRouteImport } from './routes/_app/sender-experiments'
 import { Route as AppDlrRouteImport } from './routes/_app/dlr'
+import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as AppApiProfilesRouteImport } from './routes/_app/api-profiles'
 import { Route as AppAllowedSenderIdsRouteImport } from './routes/_app/allowed-sender-ids'
 import { Route as AppAllowedNumbersRouteImport } from './routes/_app/allowed-numbers'
@@ -44,6 +45,11 @@ const AppSenderExperimentsRoute = AppSenderExperimentsRouteImport.update({
 const AppDlrRoute = AppDlrRouteImport.update({
   id: '/dlr',
   path: '/dlr',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAuditRoute = AppAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
   getParentRoute: () => AppRoute,
 } as any)
 const AppApiProfilesRoute = AppApiProfilesRouteImport.update({
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/allowed-numbers': typeof AppAllowedNumbersRoute
   '/allowed-sender-ids': typeof AppAllowedSenderIdsRoute
   '/api-profiles': typeof AppApiProfilesRoute
+  '/audit': typeof AppAuditRoute
   '/dlr': typeof AppDlrRoute
   '/sender-experiments': typeof AppSenderExperimentsRoute
   '/admin/users': typeof AppAdminUsersRoute
@@ -100,6 +107,7 @@ export interface FileRoutesByTo {
   '/allowed-numbers': typeof AppAllowedNumbersRoute
   '/allowed-sender-ids': typeof AppAllowedSenderIdsRoute
   '/api-profiles': typeof AppApiProfilesRoute
+  '/audit': typeof AppAuditRoute
   '/dlr': typeof AppDlrRoute
   '/sender-experiments': typeof AppSenderExperimentsRoute
   '/': typeof AppIndexRoute
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   '/_app/allowed-numbers': typeof AppAllowedNumbersRoute
   '/_app/allowed-sender-ids': typeof AppAllowedSenderIdsRoute
   '/_app/api-profiles': typeof AppApiProfilesRoute
+  '/_app/audit': typeof AppAuditRoute
   '/_app/dlr': typeof AppDlrRoute
   '/_app/sender-experiments': typeof AppSenderExperimentsRoute
   '/_app/': typeof AppIndexRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/allowed-numbers'
     | '/allowed-sender-ids'
     | '/api-profiles'
+    | '/audit'
     | '/dlr'
     | '/sender-experiments'
     | '/admin/users'
@@ -143,6 +153,7 @@ export interface FileRouteTypes {
     | '/allowed-numbers'
     | '/allowed-sender-ids'
     | '/api-profiles'
+    | '/audit'
     | '/dlr'
     | '/sender-experiments'
     | '/'
@@ -157,6 +168,7 @@ export interface FileRouteTypes {
     | '/_app/allowed-numbers'
     | '/_app/allowed-sender-ids'
     | '/_app/api-profiles'
+    | '/_app/audit'
     | '/_app/dlr'
     | '/_app/sender-experiments'
     | '/_app/'
@@ -206,6 +218,13 @@ declare module '@tanstack/react-router' {
       path: '/dlr'
       fullPath: '/dlr'
       preLoaderRoute: typeof AppDlrRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/audit': {
+      id: '/_app/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AppAuditRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/api-profiles': {
@@ -264,6 +283,7 @@ interface AppRouteChildren {
   AppAllowedNumbersRoute: typeof AppAllowedNumbersRoute
   AppAllowedSenderIdsRoute: typeof AppAllowedSenderIdsRoute
   AppApiProfilesRoute: typeof AppApiProfilesRoute
+  AppAuditRoute: typeof AppAuditRoute
   AppDlrRoute: typeof AppDlrRoute
   AppSenderExperimentsRoute: typeof AppSenderExperimentsRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -277,6 +297,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAllowedNumbersRoute: AppAllowedNumbersRoute,
   AppAllowedSenderIdsRoute: AppAllowedSenderIdsRoute,
   AppApiProfilesRoute: AppApiProfilesRoute,
+  AppAuditRoute: AppAuditRoute,
   AppDlrRoute: AppDlrRoute,
   AppSenderExperimentsRoute: AppSenderExperimentsRoute,
   AppIndexRoute: AppIndexRoute,
