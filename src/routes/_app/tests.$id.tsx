@@ -356,3 +356,110 @@ function Histogram({ title, data }: { title: string; data: Record<string, number
     </div>
   );
 }
+
+function DlrTab({ runId, profileId, results, onRefreshNeeded }: {
+  runId: string; profileId: string | null; results: Result[]; onRefreshNeeded: () => Promise<void> | void;
+}) {
+  const { isOperator, isAdmin } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [profileMode, setProfileMode] = useState<string>("");
+  const [tokenDlgOpen, setTokenDlgOpen] = useState(false);
+  const [tokenInput, setTokenInput] = useState("");
+  const [resolver, setResolver] = useState<{ resolve: (t: string | null) => void } | null>(null);
+  const withMessageId = results.filter((r) => r.sms_message_id);
+
+  useEffect(() => {
+    if (!profileId) return;
+    supabase.from("sms_api_profiles").select("credential_mode").eq("id", profileId).single().then(({ data }) => {
+      setProfileMode((data?.credential_mode as string) ?? "");
+    });
+  }, [profileId]);
+
+  async function getToken(): Promise<string | null | undefined> {
+    if (profileMode !== "manual_token") return undefined;
+    if (!isAdmin) { toast.error("Manual token mode is admin-only"); return null; }
+    return await new Promise<string | null>((res) => {
+      setTokenInput(""); setResolver({ resolve: res }); setTokenDlgOpen(true);
+    });
+  }
+
+  async function check(payload: Record<string, unknown>) {
+    const token = await getToken();
+    if (token === null) return;
+    const { data, error } = await supabase.functions.invoke("check-dlr-status", {
+      body: { ...payload, manual_token: token ?? undefined },
+    });
+    if (error || (data as { error?: string })?.error) {
+      toast.error((data as { error?: string })?.error ?? error?.message ?? "DLR check failed");
+      return;
+    }
+    const note = (data as { note?: string }).note;
+    if (note) toast.message(note); else toast.success("DLR updated");
+    await onRefreshNeeded();
+  }
+
+  async function checkAll() {
+    if (!profileId) { toast.error("Run has no API profile"); return; }
+    if (!isOperator) { toast.error("Operator role required"); return; }
+    setBusy(true); await check({ profile_id: profileId, run_id: runId }); setBusy(false);
+  }
+  async function checkOne(r: Result) {
+    if (!profileId || !r.sms_message_id) return;
+    setRowBusy(r.id); await check({ profile_id: profileId, run_id: runId, sms_message_id: r.sms_message_id }); setRowBusy(null);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">{withMessageId.length} message(s) with SMS Message ID</div>
+        <Button onClick={checkAll} disabled={busy || withMessageId.length === 0}>
+          {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Check all
+        </Button>
+      </div>
+      <div className="rounded-lg border bg-card overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>SMS Msg ID</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Current</TableHead>
+              <TableHead>DLR Code</TableHead>
+              <TableHead>Report Status</TableHead>
+              <TableHead>Error</TableHead>
+              <TableHead>Received</TableHead>
+              <TableHead>Last Checked</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {withMessageId.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">No SMS Message IDs yet.</TableCell></TableRow> :
+              withMessageId.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="font-mono text-xs max-w-[160px] truncate">{r.sms_message_id}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.phone_normalized ? formatPhoneDisplay(r.phone_normalized) : "—"}</TableCell>
+                  <TableCell><Badge variant={r.current_status === "Delivered" ? "default" : r.current_status ? "secondary" : "outline"}>{r.current_status ?? "—"}</Badge></TableCell>
+                  <TableCell className="text-xs font-mono">{r.dlr_code ?? "—"}</TableCell>
+                  <TableCell className="text-xs">{(r as any).report_status ?? "—"}</TableCell>
+                  <TableCell className="text-xs">{(r as any).error_code ?? "—"}{(r as any).error_description ? <div className="text-muted-foreground truncate max-w-[180px]">{(r as any).error_description}</div> : null}</TableCell>
+                  <TableCell className="text-xs">{(r as any).received_at_utc ? new Date((r as any).received_at_utc).toLocaleString() : "—"}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{r.dlr_checked_at ? new Date(r.dlr_checked_at).toLocaleString() : "—"}</TableCell>
+                  <TableCell><Button size="sm" variant="ghost" disabled={rowBusy === r.id} onClick={() => checkOne(r)}>{rowBusy === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Recheck"}</Button></TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
+        </Table>
+      </div>
+      <Dialog open={tokenDlgOpen} onOpenChange={(o) => { if (!o) { setTokenDlgOpen(false); resolver?.resolve(null); setResolver(null); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Enter API token</DialogTitle><DialogDescription>Used once for this DLR check. Never stored.</DialogDescription></DialogHeader>
+          <Input type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} autoFocus />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setTokenDlgOpen(false); resolver?.resolve(null); setResolver(null); }}>Cancel</Button>
+            <Button disabled={!tokenInput} onClick={() => { const t = tokenInput; setTokenInput(""); setTokenDlgOpen(false); resolver?.resolve(t); setResolver(null); }}>Submit</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
