@@ -51,16 +51,22 @@ Deno.serve(async (req) => {
     // Resolve token
     let token: string | null = null;
     if (profile.credential_mode === "manual_token") {
-      if (!ctx.isAdmin) return json({ error: "Manual Token mode is admin-only" }, 403);
-      if (!manualToken) return json({ error: "manual_token required for this profile" }, 400);
+      if (!ctx.isAdmin) return json({ ok: false, error: "Manual Token mode is admin-only", code: "FORBIDDEN" }, 403);
+      if (!manualToken) return json({ ok: false, error: "Manual token required", code: "MANUAL_TOKEN_REQUIRED" }, 400);
       token = manualToken;
       await audit(admin, ctx, "manual_token.used_for_test_run", "sms_test_run", run_id, { profile_name: profile.name });
     } else {
       const sn = profile.credential_secret_name;
-      if (!sn) return json({ error: "Profile missing credential_secret_name" }, 400);
+      if (!sn) return json({ ok: false, error: "Profile missing credential_secret_name", code: "PROFILE_MISCONFIGURED" }, 400);
       token = Deno.env.get(sn) ?? null;
-      if (!token) return json({ error: `Backend secret '${sn}' not configured` }, 400);
+      if (!token) return json({ ok: false, error: `Backend secret '${sn}' not found. Add it in Lovable Cloud → Secrets.`, code: "BACKEND_SECRET_MISSING", secret_name: sn }, 400);
     }
+    console.log("start-sms-test-run debug", {
+      user_id: ctx.userId, role: ctx.isAdmin ? "admin" : "operator",
+      run_id, mode: run.mode, send_count: sendCount,
+      api_profile_id: profile.id, credential_mode: profile.credential_mode,
+      sender_field_key: run.sender_field_key, sender_id_set: !!run.sender_id,
+    });
 
     const baseUrl = profile.base_url.replace(/\/+$/, "");
     const sendUrl = baseUrl + (profile.send_sms_path.startsWith("/") ? profile.send_sms_path : `/${profile.send_sms_path}`);
