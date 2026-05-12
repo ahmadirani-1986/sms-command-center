@@ -122,17 +122,24 @@ Deno.serve(async (req) => {
     stage = "insert_run";
     const { data: run, error: rErr } = await admin.from("sms_test_runs").insert({
       name: name.trim(),
-      api_profile_id, mode,
+      api_mode,
+      api_profile_id: api_mode === "profile" ? api_profile_id : null,
+      raw_template_id: api_mode === "raw_template" ? raw_template_id : null,
+      mode,
       status: "draft",
       message_body,
-      sender_id: resolvedSenderKey ? sender_id : null,
-      sender_field_key: sender_field_key ?? "none",
-      custom_sender_field_key: sender_field_key === "custom" ? custom_sender_field_key : null,
+      sender_id: resolvedSenderKey ? sender_id : (api_mode === "raw_template" && sender_id ? sender_id : null),
+      sender_field_key: api_mode === "raw_template" ? "none" : (sender_field_key ?? "none"),
+      custom_sender_field_key: api_mode === "profile" && sender_field_key === "custom" ? custom_sender_field_key : null,
       total_recipients: recipientRows.length,
       max_send_limit, batch_size, requests_per_sec, concurrency,
       ramp_up_seconds, timeout_seconds, retry_count, auto_stop_error_rate_pct,
       created_by: ctx.userId,
     }).select().single();
+    if (rErr || !run) {
+      console.error("create-test-run insert failed", { stage, db_error: rErr?.message, code: rErr?.code });
+      return err(rErr?.message ?? "Failed to create run", "DB_INSERT_FAILED", 500, { db_code: rErr?.code });
+    }
     if (rErr || !run) {
       console.error("create-test-run insert failed", { stage, db_error: rErr?.message, code: rErr?.code });
       return err(rErr?.message ?? "Failed to create run", "DB_INSERT_FAILED", 500, { db_code: rErr?.code });
