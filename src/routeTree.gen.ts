@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppApiProfilesRouteImport } from './routes/_app/api-profiles'
+import { Route as AppTestsNewRouteImport } from './routes/_app/tests.new'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -33,16 +34,23 @@ const AppApiProfilesRoute = AppApiProfilesRouteImport.update({
   path: '/api-profiles',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTestsNewRoute = AppTestsNewRouteImport.update({
+  id: '/tests/new',
+  path: '/tests/new',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/api-profiles': typeof AppApiProfilesRoute
+  '/tests/new': typeof AppTestsNewRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/api-profiles': typeof AppApiProfilesRoute
   '/': typeof AppIndexRoute
+  '/tests/new': typeof AppTestsNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -50,13 +58,20 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_app/api-profiles': typeof AppApiProfilesRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/tests/new': typeof AppTestsNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/api-profiles'
+  fullPaths: '/' | '/login' | '/api-profiles' | '/tests/new'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/api-profiles' | '/'
-  id: '__root__' | '/_app' | '/login' | '/_app/api-profiles' | '/_app/'
+  to: '/login' | '/api-profiles' | '/' | '/tests/new'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/_app/api-profiles'
+    | '/_app/'
+    | '/_app/tests/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -94,17 +109,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppApiProfilesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/tests/new': {
+      id: '/_app/tests/new'
+      path: '/tests/new'
+      fullPath: '/tests/new'
+      preLoaderRoute: typeof AppTestsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
   AppApiProfilesRoute: typeof AppApiProfilesRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppTestsNewRoute: typeof AppTestsNewRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppApiProfilesRoute: AppApiProfilesRoute,
   AppIndexRoute: AppIndexRoute,
+  AppTestsNewRoute: AppTestsNewRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
