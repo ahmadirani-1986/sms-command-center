@@ -179,6 +179,45 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_raw_templates: {
+        Row: {
+          base_url: string
+          created_at: string
+          created_by: string | null
+          credential_mode: Database["public"]["Enums"]["credential_mode"]
+          credential_secret_name: string | null
+          id: string
+          is_active: boolean
+          name: string
+          raw_curl: string
+          updated_at: string
+        }
+        Insert: {
+          base_url?: string
+          created_at?: string
+          created_by?: string | null
+          credential_mode?: Database["public"]["Enums"]["credential_mode"]
+          credential_secret_name?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          raw_curl: string
+          updated_at?: string
+        }
+        Update: {
+          base_url?: string
+          created_at?: string
+          created_by?: string | null
+          credential_mode?: Database["public"]["Enums"]["credential_mode"]
+          credential_secret_name?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          raw_curl?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sms_sender_experiment_attempts: {
         Row: {
           api_status: string | null
@@ -498,6 +537,7 @@ export type Database = {
       }
       sms_test_runs: {
         Row: {
+          api_mode: string
           api_profile_id: string | null
           auto_stop_error_rate_pct: number
           batch_size: number
@@ -518,6 +558,7 @@ export type Database = {
           name: string
           pending_count: number
           ramp_up_seconds: number
+          raw_template_id: string | null
           requests_per_sec: number
           retry_count: number
           sender_field_key: string
@@ -530,6 +571,7 @@ export type Database = {
           total_recipients: number
         }
         Insert: {
+          api_mode?: string
           api_profile_id?: string | null
           auto_stop_error_rate_pct?: number
           batch_size?: number
@@ -550,6 +592,7 @@ export type Database = {
           name: string
           pending_count?: number
           ramp_up_seconds?: number
+          raw_template_id?: string | null
           requests_per_sec?: number
           retry_count?: number
           sender_field_key?: string
@@ -562,6 +605,7 @@ export type Database = {
           total_recipients?: number
         }
         Update: {
+          api_mode?: string
           api_profile_id?: string | null
           auto_stop_error_rate_pct?: number
           batch_size?: number
@@ -582,6 +626,7 @@ export type Database = {
           name?: string
           pending_count?: number
           ramp_up_seconds?: number
+          raw_template_id?: string | null
           requests_per_sec?: number
           retry_count?: number
           sender_field_key?: string

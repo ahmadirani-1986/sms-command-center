@@ -21,6 +21,7 @@ import { Loader2, ShieldAlert, Send, FlaskConical, Upload } from "lucide-react";
 import { normalizePhone, formatPhoneDisplay, isValidNormalizedPhone } from "@/lib/phone";
 import { computeSegments } from "@/lib/sms";
 import { invokeFn, formatInvokeError } from "@/lib/invoke-fn";
+import { parseCurl, redactToken, renderTemplate } from "@/lib/curl";
 
 export const Route = createFileRoute("/_app/tests/new")({
   component: NewTestPage,
@@ -28,10 +29,16 @@ export const Route = createFileRoute("/_app/tests/new")({
 
 type Mode = "dry_run" | "real_send" | "load_test";
 type SenderKey = "none" | "source_addr" | "sender" | "senderId" | "from" | "senderName" | "custom";
+type ApiMode = "profile" | "raw_template";
 
 interface Profile {
   id: string; name: string; base_url: string; send_sms_path: string;
   auth_header_name: string; credential_mode: "backend_secret" | "manual_token";
+  credential_secret_name: string | null; is_active: boolean;
+}
+interface RawTemplate {
+  id: string; name: string; raw_curl: string; base_url: string;
+  credential_mode: "backend_secret" | "manual_token";
   credential_secret_name: string | null; is_active: boolean;
 }
 
@@ -50,10 +57,13 @@ function NewTestPage() {
   const navigate = useNavigate();
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [templates, setTemplates] = useState<RawTemplate[]>([]);
   const [allowed, setAllowed] = useState<Set<string>>(new Set());
 
   const [name, setName] = useState("");
+  const [apiMode, setApiMode] = useState<ApiMode>("profile");
   const [profileId, setProfileId] = useState<string>("");
+  const [templateId, setTemplateId] = useState<string>("");
   const [mode, setMode] = useState<Mode>("dry_run");
   const [message, setMessage] = useState("");
   const [senderId, setSenderId] = useState("");
@@ -66,17 +76,23 @@ function NewTestPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: p } = await supabase.from("sms_api_profiles")
-        .select("id,name,base_url,send_sms_path,auth_header_name,credential_mode,credential_secret_name,is_active")
-        .eq("is_active", true).order("name");
+      const [{ data: p }, { data: t }, { data: a }] = await Promise.all([
+        supabase.from("sms_api_profiles")
+          .select("id,name,base_url,send_sms_path,auth_header_name,credential_mode,credential_secret_name,is_active")
+          .eq("is_active", true).order("name"),
+        supabase.from("sms_raw_templates")
+          .select("id,name,raw_curl,base_url,credential_mode,credential_secret_name,is_active")
+          .eq("is_active", true).order("name"),
+        supabase.from("sms_test_allowed_numbers").select("phone_normalized").eq("is_active", true),
+      ]);
       setProfiles((p ?? []) as Profile[]);
-      const { data: a } = await supabase.from("sms_test_allowed_numbers")
-        .select("phone_normalized").eq("is_active", true);
+      setTemplates((t ?? []) as RawTemplate[]);
       setAllowed(new Set((a ?? []).map((x: { phone_normalized: string }) => x.phone_normalized)));
     })();
   }, []);
 
   const profile = profiles.find((p) => p.id === profileId);
+  const template = templates.find((t) => t.id === templateId);
 
   const recipients: Recipient[] = useMemo(() => {
     const seen = new Set<string>();
@@ -117,28 +133,33 @@ function NewTestPage() {
   }, [senderKey, senderId, customKey]);
 
   const canCreate =
-    !creating && !!name.trim() && !!profileId && !!message && eligibleCount > 0 && !senderError;
+    !creating && !!name.trim() && !!message && eligibleCount > 0 && !senderError &&
+    (apiMode === "profile" ? !!profileId : !!templateId);
 
-  // Restrict operators from manual_token profiles
-  const profileBlockedForOperator =
-    profile?.credential_mode === "manual_token" && !isAdmin;
+  // Restrict operators from manual_token profiles/templates
+  const credMode = apiMode === "profile" ? profile?.credential_mode : template?.credential_mode;
+  const profileBlockedForOperator = credMode === "manual_token" && !isAdmin;
 
   async function handleCreateAndProceed() {
     if (!canCreate) return;
     if (profileBlockedForOperator) {
-      toast.error("Manual Token profiles are admin-only");
+      toast.error("Manual Token mode is admin-only");
       return;
     }
     setCreating(true);
     try {
       const { data, error } = await invokeFn<{ ok: boolean; run_id: string }>("create-test-run", {
         name: name.trim(),
-        api_profile_id: profileId,
+        api_mode: apiMode,
+        api_profile_id: apiMode === "profile" ? profileId : null,
+        raw_template_id: apiMode === "raw_template" ? templateId : null,
         mode,
         message_body: message,
-        sender_id: senderKey === "none" ? null : senderId.trim(),
-        sender_field_key: senderKey,
-        custom_sender_field_key: senderKey === "custom" ? customKey.trim() : null,
+        sender_id: apiMode === "raw_template"
+          ? (senderId.trim() || null)
+          : (senderKey === "none" ? null : senderId.trim()),
+        sender_field_key: apiMode === "raw_template" ? "none" : senderKey,
+        custom_sender_field_key: apiMode === "profile" && senderKey === "custom" ? customKey.trim() : null,
         recipients: recipients.map((r) => r.raw),
         max_send_limit: load.total_request_limit,
         batch_size: load.batch_size,
@@ -223,38 +244,71 @@ function NewTestPage() {
               <Field label="Test name">
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Saudi pilot QA" />
               </Field>
-              <Field label="API profile">
-                <Select value={profileId} onValueChange={setProfileId}>
-                  <SelectTrigger><SelectValue placeholder="Select a profile" /></SelectTrigger>
-                  <SelectContent>
-                    {profiles.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}{" "}
-                        {p.credential_mode === "manual_token" && (
-                          <span className="text-warning text-xs ml-1">(manual token)</span>
-                        )}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {profileBlockedForOperator && (
-                  <p className="text-xs text-warning mt-1">
-                    This profile uses Manual Token mode. Admin only.
-                  </p>
-                )}
+              <Field label="API mode">
+                <Tabs value={apiMode} onValueChange={(v) => setApiMode(v as ApiMode)}>
+                  <TabsList>
+                    <TabsTrigger value="profile">Structured API Profile</TabsTrigger>
+                    <TabsTrigger value="raw_template">Raw API Template</TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </Field>
             </div>
-            <Field label="Test mode">
-              <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
-                <TabsList>
-                  <TabsTrigger value="dry_run"><FlaskConical className="h-3.5 w-3.5 mr-1" /> Dry Run</TabsTrigger>
-                  <TabsTrigger value="real_send"><Send className="h-3.5 w-3.5 mr-1" /> Controlled Real Send</TabsTrigger>
-                  <TabsTrigger value="load_test">Load Test</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              {apiMode === "profile" ? (
+                <Field label="API profile">
+                  <Select value={profileId} onValueChange={setProfileId}>
+                    <SelectTrigger><SelectValue placeholder="Select a profile" /></SelectTrigger>
+                    <SelectContent>
+                      {profiles.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                          {p.credential_mode === "manual_token" && (
+                            <span className="text-warning text-xs ml-1">(manual token)</span>
+                          )}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              ) : (
+                <Field label="Raw API template">
+                  <Select value={templateId} onValueChange={setTemplateId}>
+                    <SelectTrigger><SelectValue placeholder="Select a template" /></SelectTrigger>
+                    <SelectContent>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                          {t.credential_mode === "manual_token" && (
+                            <span className="text-warning text-xs ml-1">(manual token)</span>
+                          )}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+              <Field label="Test mode">
+                <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
+                  <TabsList>
+                    <TabsTrigger value="dry_run"><FlaskConical className="h-3.5 w-3.5 mr-1" /> Dry Run</TabsTrigger>
+                    <TabsTrigger value="real_send"><Send className="h-3.5 w-3.5 mr-1" /> Real Send</TabsTrigger>
+                    <TabsTrigger value="load_test">Load Test</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </Field>
+            </div>
+            {profileBlockedForOperator && (
+              <p className="text-xs text-warning mt-1">Manual Token mode is admin-only.</p>
+            )}
+            {apiMode === "raw_template" && template && (
+              <div className="mt-2">
+                <Label className="text-xs text-muted-foreground">Template cURL preview (token redacted)</Label>
+                <pre className="rounded-md border bg-muted/30 p-3 text-[11px] font-mono max-h-40 overflow-auto whitespace-pre-wrap">
+{redactToken(template.raw_curl)}
+                </pre>
+              </div>
+            )}
           </Section>
-
           <Section title="Message">
             <Textarea
               rows={4}
