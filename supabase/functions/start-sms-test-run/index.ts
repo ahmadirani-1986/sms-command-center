@@ -25,10 +25,23 @@ Deno.serve(async (req) => {
     if (rErr || !run) return json({ error: "Run not found" }, 404);
     if (!["draft", "stopped"].includes(run.status)) return json({ error: `Run already ${run.status}` }, 400);
 
-    const { data: profile, error: pErr } = await admin
-      .from("sms_api_profiles").select("*").eq("id", run.api_profile_id).single();
-    if (pErr || !profile) return json({ error: "API profile not found" }, 404);
-    if (!profile.is_active) return json({ error: "API profile inactive" }, 400);
+    const isRaw = run.api_mode === "raw_template";
+
+    let profile: any = null;
+    let template: any = null;
+    if (isRaw) {
+      const { data: tpl, error: tErr } = await admin
+        .from("sms_raw_templates").select("*").eq("id", run.raw_template_id).single();
+      if (tErr || !tpl) return json({ ok: false, error: "Raw template not found", code: "TEMPLATE_NOT_FOUND" }, 404);
+      if (!tpl.is_active) return json({ ok: false, error: "Raw template inactive", code: "TEMPLATE_INACTIVE" }, 400);
+      template = tpl;
+    } else {
+      const { data: p, error: pErr } = await admin
+        .from("sms_api_profiles").select("*").eq("id", run.api_profile_id).single();
+      if (pErr || !p) return json({ error: "API profile not found" }, 404);
+      if (!p.is_active) return json({ error: "API profile inactive" }, 400);
+      profile = p;
+    }
 
     const isReal = run.mode !== "dry_run";
 
@@ -49,46 +62,27 @@ Deno.serve(async (req) => {
       }
     }
 
+    const credentialMode = isRaw ? template.credential_mode : profile.credential_mode;
+    const credentialSecretName = isRaw ? template.credential_secret_name : profile.credential_secret_name;
+
     // Resolve token
     let token: string | null = null;
-    if (profile.credential_mode === "manual_token") {
+    if (credentialMode === "manual_token") {
       if (!ctx.isAdmin) return json({ ok: false, error: "Manual Token mode is admin-only", code: "FORBIDDEN" }, 403);
       if (!manualToken) return json({ ok: false, error: "Manual token required", code: "MANUAL_TOKEN_REQUIRED" }, 400);
       token = manualToken;
-      await audit(admin, ctx, "manual_token.used_for_test_run", "sms_test_run", run_id, { profile_name: profile.name });
+      await audit(admin, ctx, "manual_token.used_for_test_run", "sms_test_run", run_id, { name: isRaw ? template.name : profile.name });
     } else {
-      const sn = profile.credential_secret_name;
-      if (!sn) return json({ ok: false, error: "Profile missing credential_secret_name", code: "PROFILE_MISCONFIGURED" }, 400);
+      const sn = credentialSecretName;
+      if (!sn) return json({ ok: false, error: "Missing credential_secret_name", code: "PROFILE_MISCONFIGURED" }, 400);
       token = Deno.env.get(sn) ?? null;
       if (!token) return json({ ok: false, error: `Backend secret '${sn}' not found. Add it in Lovable Cloud → Secrets.`, code: "BACKEND_SECRET_MISSING", secret_name: sn }, 400);
     }
     console.log("start-sms-test-run debug", {
       user_id: ctx.userId, role: ctx.isAdmin ? "admin" : "operator",
-      run_id, mode: run.mode, send_count: sendCount,
-      api_profile_id: profile.id, credential_mode: profile.credential_mode,
-      sender_field_key: run.sender_field_key, sender_id_set: !!run.sender_id,
-    });
-
-    const baseUrl = profile.base_url.replace(/\/+$/, "");
-    const sendUrl = baseUrl + (profile.send_sms_path.startsWith("/") ? profile.send_sms_path : `/${profile.send_sms_path}`);
-    const creditsUrl = baseUrl + (profile.credits_path.startsWith("/") ? profile.credits_path : `/${profile.credits_path}`);
-    const headerName = profile.auth_header_name || "X-API-Key";
-
-    const buildHeaders = () => {
-      const h: Record<string, string> = { Accept: "*/*", "Content-Type": "application/json" };
-      if (profile.auth_type === "Bearer Token") h["Authorization"] = `Bearer ${token}`;
-      else h[headerName] = token!;
-      return h;
-    };
-
-    // Mark as starting
-    await admin.from("sms_test_runs").update({
-      status: "running", started_at: new Date().toISOString(), kill_switch: false,
-      submitted_count: 0, success_count: 0, failed_count: 0, pending_count: sendCount, error_rate_pct: 0,
-    }).eq("id", run_id);
-
-    await audit(admin, ctx, "test_run.started", "sms_test_run", run_id, {
-      mode: run.mode, send_count: sendCount, profile_name: profile.name,
+      run_id, mode: run.mode, send_count: sendCount, api_mode: run.api_mode,
+      api_profile_id: profile?.id ?? null, raw_template_id: template?.id ?? null,
+      credential_mode: credentialMode,
     });
     await logRun(admin, run_id, "info", "run.started", { send_count: sendCount, mode: run.mode });
 
