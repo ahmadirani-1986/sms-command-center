@@ -114,14 +114,16 @@ Deno.serve(async (req) => {
     });
     await logRun(admin, run_id, "info", "run.started", { send_count: sendCount, mode: run.mode, api_mode: run.api_mode });
 
-    // Credits check (real send only)
+    // Credits check (real send only, profile mode only)
     let creditsBefore: number | null = null;
-    if (isReal) {
+    if (isReal && !isRaw) {
       try {
         const cResp = await fetch(creditsUrl, { method: profile.credits_method || "GET", headers: buildHeaders() });
         const cText = await cResp.text();
         let parsed: any = null; try { parsed = JSON.parse(cText); } catch { /* ignore */ }
-        creditsBefore = parsed?.credits ?? parsed?.balance ?? parsed?.wallet_balance ?? null;
+        const dataObj = Array.isArray(parsed?.data) ? parsed.data[0] : parsed;
+        creditsBefore = dataObj?.credits ?? parsed?.credits ?? parsed?.balance ?? parsed?.wallet_balance ?? null;
+        if (creditsBefore != null) creditsBefore = Number(creditsBefore);
         await logRun(admin, run_id, "info", "credits.checked", {
           http_status: cResp.status, credits: creditsBefore,
         });
