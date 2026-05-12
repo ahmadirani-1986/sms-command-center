@@ -82,8 +82,13 @@ function DlrPage() {
   async function withTokenIfNeeded(action: (token?: string) => Promise<void>) {
     if (selectedProfile?.credential_mode === "manual_token") {
       if (!isAdmin) { toast.error("Manual token mode is admin-only"); return; }
-      setTokenInput("");
-      setTokenDlg({ open: true, pending: async () => { const t = tokenInput; setTokenInput(""); await action(t); } });
+      const token = await new Promise<string | null>((resolve) => {
+        setTokenInput("");
+        setTokenResolver({ resolve });
+        setTokenDlgOpen(true);
+      });
+      if (!token) return;
+      await action(token);
     } else {
       await action();
     }
