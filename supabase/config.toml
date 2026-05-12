@@ -17,3 +17,7 @@ verify_jwt = true
 
 [functions.run-sender-experiment]
 verify_jwt = true
+
+[functions.test-raw-template]
+verify_jwt = true
+
