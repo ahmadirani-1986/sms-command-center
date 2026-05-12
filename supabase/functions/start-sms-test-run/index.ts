@@ -84,7 +84,35 @@ Deno.serve(async (req) => {
       api_profile_id: profile?.id ?? null, raw_template_id: template?.id ?? null,
       credential_mode: credentialMode,
     });
-    await logRun(admin, run_id, "info", "run.started", { send_count: sendCount, mode: run.mode });
+
+    // Build send abstractions
+    const baseUrl = (isRaw ? template.base_url : profile.base_url).replace(/\/+$/, "");
+    const headerName = isRaw ? "X-API-Key" : (profile.auth_header_name || "X-API-Key");
+    const sendUrl = isRaw
+      ? "" // resolved per-recipient from template
+      : baseUrl + (profile.send_sms_path.startsWith("/") ? profile.send_sms_path : `/${profile.send_sms_path}`);
+    const creditsUrl = isRaw
+      ? "" // raw mode skips credits unless template includes its own credits API (not supported here)
+      : baseUrl + (profile.credits_path.startsWith("/") ? profile.credits_path : `/${profile.credits_path}`);
+
+    const buildHeaders = () => {
+      const h: Record<string, string> = { Accept: "*/*", "Content-Type": "application/json" };
+      if (!isRaw && profile.auth_type === "Bearer Token") h["Authorization"] = `Bearer ${token}`;
+      else h[headerName] = token!;
+      return h;
+    };
+
+    // Mark as starting
+    await admin.from("sms_test_runs").update({
+      status: "running", started_at: new Date().toISOString(), kill_switch: false,
+      submitted_count: 0, success_count: 0, failed_count: 0, pending_count: sendCount, error_rate_pct: 0,
+    }).eq("id", run_id);
+
+    await audit(admin, ctx, "test_run.started", "sms_test_run", run_id, {
+      mode: run.mode, send_count: sendCount, api_mode: run.api_mode,
+      profile_name: profile?.name ?? null, template_name: template?.name ?? null,
+    });
+    await logRun(admin, run_id, "info", "run.started", { send_count: sendCount, mode: run.mode, api_mode: run.api_mode });
 
     // Credits check (real send only)
     let creditsBefore: number | null = null;
