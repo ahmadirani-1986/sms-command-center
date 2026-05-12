@@ -12,52 +12,54 @@ Deno.serve(async (req) => {
     const url = Deno.env.get("SUPABASE_URL")!;
     const anon = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!;
     const sk = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    stage = "auth";
     const auth = await authenticate(req, url, anon, sk);
     if ("error" in auth) return auth.error;
     const { ctx, admin } = auth;
-    if (!ctx.isOperator) return json({ error: "Operator role required" }, 403);
+    if (!ctx.isOperator) return err("Operator role required", "FORBIDDEN", 403);
 
+    stage = "parse_body";
     const body = await req.json();
     const {
       name, api_profile_id, mode, message_body, sender_id,
       sender_field_key, custom_sender_field_key,
-      recipients, // string[]
+      recipients,
       max_send_limit = 50, batch_size = 1, requests_per_sec = 1,
       concurrency = 1, ramp_up_seconds = 0, timeout_seconds = 30,
       retry_count = 0, auto_stop_error_rate_pct = 50,
     } = body ?? {};
 
-    if (!name || typeof name !== "string") return json({ error: "name required" }, 400);
-    if (!api_profile_id) return json({ error: "api_profile_id required" }, 400);
-    if (!message_body || typeof message_body !== "string") return json({ error: "message_body required" }, 400);
-    if (!["dry_run", "real_send", "load_test"].includes(mode)) return json({ error: "Invalid mode" }, 400);
-    if (!Array.isArray(recipients) || recipients.length === 0) return json({ error: "recipients required" }, 400);
+    stage = "validate";
+    if (!name || typeof name !== "string") return err("name required", "VALIDATION_ERROR", 400, { field: "name" });
+    if (!api_profile_id) return err("api_profile_id required", "VALIDATION_ERROR", 400, { field: "api_profile_id" });
+    if (!message_body || typeof message_body !== "string") return err("message_body required", "VALIDATION_ERROR", 400, { field: "message_body" });
+    if (!["dry_run", "real_send", "load_test"].includes(mode)) return err(`Invalid mode '${mode}'`, "VALIDATION_ERROR", 400, { field: "mode" });
+    if (!Array.isArray(recipients) || recipients.length === 0) return err("recipients required", "VALIDATION_ERROR", 400, { field: "recipients" });
 
+    stage = "load_profile";
     const { data: profile, error: pErr } = await admin
       .from("sms_api_profiles").select("*").eq("id", api_profile_id).single();
-    if (pErr || !profile) return json({ error: "API profile not found" }, 404);
-    if (!profile.is_active) return json({ error: "API profile is inactive" }, 400);
+    if (pErr || !profile) return err("API profile not found", "PROFILE_NOT_FOUND", 404, { db_error: pErr?.message });
+    if (!profile.is_active) return err("API profile is inactive", "PROFILE_INACTIVE", 400);
 
-    // Operators cannot use manual_token profiles
     if (profile.credential_mode === "manual_token" && !ctx.isAdmin) {
-      return json({ error: "Manual Token profiles are admin-only" }, 403);
+      return err("Manual Token profiles are admin-only", "FORBIDDEN", 403);
     }
 
-    // Sender field validation
+    stage = "validate_sender";
     let resolvedSenderKey: string | null = null;
     if (sender_field_key && sender_field_key !== "none") {
       resolvedSenderKey = resolveSenderKey(sender_field_key, custom_sender_field_key);
-      if (!resolvedSenderKey) return json({ error: "Invalid sender field key" }, 400);
-      if (!sender_id || !String(sender_id).trim()) return json({ error: "sender_id required when sender_field_key is set" }, 400);
+      if (!resolvedSenderKey) return err(`Invalid sender field key '${sender_field_key}'`, "VALIDATION_ERROR", 400, { field: "sender_field_key" });
+      if (!sender_id || !String(sender_id).trim()) return err("sender_id required when sender_field_key is set", "VALIDATION_ERROR", 400, { field: "sender_id" });
     }
 
-    // Normalize + dedupe recipients
+    stage = "normalize_recipients";
     const seen = new Set<string>();
     const recipientRows: Array<{
       phone_original: string; phone_normalized: string;
       is_valid: boolean; is_whitelisted: boolean; validation_error: string | null;
     }> = [];
-
     const normalizedList: string[] = [];
     for (const raw of recipients) {
       const original = String(raw).trim();
@@ -76,7 +78,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Whitelist lookup (active only)
+    stage = "whitelist_lookup";
     if (normalizedList.length > 0) {
       const { data: allowed } = await admin
         .from("sms_test_allowed_numbers")
@@ -87,29 +89,39 @@ Deno.serve(async (req) => {
       for (const r of recipientRows) r.is_whitelisted = allowedSet.has(r.phone_normalized);
     }
 
-    // Insert run
+    const whitelistedCount = recipientRows.filter((r) => r.is_whitelisted).length;
+    console.log("create-test-run debug", {
+      user_id: ctx.userId,
+      role: ctx.isAdmin ? "admin" : ctx.isOperator ? "operator" : "viewer",
+      api_profile_id, mode,
+      recipient_count: recipientRows.length,
+      whitelisted_count: whitelistedCount,
+      sender_field_key: sender_field_key ?? "none",
+      sender_id_set: !!sender_id,
+      credential_mode: profile.credential_mode,
+      stage: "pre_insert",
+    });
+
+    stage = "insert_run";
     const { data: run, error: rErr } = await admin.from("sms_test_runs").insert({
       name: name.trim(),
-      api_profile_id,
-      mode,
+      api_profile_id, mode,
       status: "draft",
       message_body,
       sender_id: resolvedSenderKey ? sender_id : null,
       sender_field_key: sender_field_key ?? "none",
       custom_sender_field_key: sender_field_key === "custom" ? custom_sender_field_key : null,
       total_recipients: recipientRows.length,
-      max_send_limit,
-      batch_size,
-      requests_per_sec,
-      concurrency,
-      ramp_up_seconds,
-      timeout_seconds,
-      retry_count,
-      auto_stop_error_rate_pct,
+      max_send_limit, batch_size, requests_per_sec, concurrency,
+      ramp_up_seconds, timeout_seconds, retry_count, auto_stop_error_rate_pct,
       created_by: ctx.userId,
     }).select().single();
-    if (rErr || !run) return json({ error: rErr?.message ?? "Failed to create run" }, 500);
+    if (rErr || !run) {
+      console.error("create-test-run insert failed", { stage, db_error: rErr?.message, code: rErr?.code });
+      return err(rErr?.message ?? "Failed to create run", "DB_INSERT_FAILED", 500, { db_code: rErr?.code });
+    }
 
+    stage = "insert_recipients";
     if (recipientRows.length > 0) {
       const { error: insErr } = await admin.from("sms_test_recipients")
         .insert(recipientRows.map((r) => ({ ...r, test_run_id: run.id })));
@@ -121,9 +133,9 @@ Deno.serve(async (req) => {
     });
     await logRun(admin, run.id, "info", "run.created", { mode, total_recipients: recipientRows.length });
 
-    return json({ ok: true, run_id: run.id, total_recipients: recipientRows.length });
+    return json({ ok: true, run_id: run.id, total_recipients: recipientRows.length, whitelisted_count: whitelistedCount });
   } catch (e) {
-    console.error("create-test-run error", e);
-    return json({ error: String(e?.message ?? e) }, 500);
+    console.error("create-test-run error", { stage, error: String(e?.message ?? e) });
+    return json({ ok: false, error: String(e?.message ?? e), code: "UNCAUGHT", stage }, 500);
   }
 });
