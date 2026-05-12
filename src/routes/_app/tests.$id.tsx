@@ -308,9 +308,7 @@ function TestRunDetailsPage() {
         </TabsContent>
 
         <TabsContent value="dlr" className="mt-4">
-          <div className="rounded-lg border border-dashed bg-card p-10 text-center text-sm text-muted-foreground">
-            DLR Checker comes in Phase 4.
-          </div>
+          <DlrTab runId={id} profileId={run.api_profile_id} onRefreshNeeded={load} results={results} />
         </TabsContent>
       </Tabs>
     </>
