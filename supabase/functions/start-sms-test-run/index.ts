@@ -316,15 +316,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Credits after
+    // Credits after (profile mode only)
     let creditsAfter: number | null = null;
-    try {
-      const cResp = await fetch(creditsUrl, { method: profile.credits_method || "GET", headers: buildHeaders() });
-      if (cResp.ok) {
-        const t = await cResp.text();
-        try { const p = JSON.parse(t); creditsAfter = p?.credits ?? p?.balance ?? p?.wallet_balance ?? null; } catch {/*ignore*/}
-      }
-    } catch { /* ignore */ }
+    if (!isRaw) {
+      try {
+        const cResp = await fetch(creditsUrl, { method: profile.credits_method || "GET", headers: buildHeaders() });
+        if (cResp.ok) {
+          const t = await cResp.text();
+          try {
+            const p = JSON.parse(t);
+            const dataObj = Array.isArray(p?.data) ? p.data[0] : p;
+            creditsAfter = dataObj?.credits ?? p?.credits ?? p?.balance ?? p?.wallet_balance ?? null;
+            if (creditsAfter != null) creditsAfter = Number(creditsAfter);
+          } catch {/*ignore*/}
+        }
+      } catch { /* ignore */ }
+    }
 
     const finalStatus = stopped ? "stopped" : "completed";
     await admin.from("sms_test_runs").update({
