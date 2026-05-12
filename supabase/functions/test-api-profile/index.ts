@@ -192,11 +192,26 @@ Deno.serve(async (req) => {
       }, 200);
     }
 
-    const p = (parsed ?? {}) as Record<string, unknown>;
-    const credits = (p.credits ?? p.balance ?? p.wallet_balance ?? null) as number | null;
-    const walletId = (p.wallet_id ?? p.walletId ?? null) as string | null;
-    const tenantId = (p.tenant_id ?? p.tenantId ?? null) as string | null;
-    const apiUserId = (p.user_id ?? p.userId ?? null) as string | null;
+    // Normalize: some APIs return a JSON string, or double-encoded JSON.
+    let root: unknown = parsed;
+    for (let i = 0; i < 2 && typeof root === "string"; i++) {
+      try { root = JSON.parse(root as string); } catch { break; }
+    }
+    const r = (root ?? {}) as Record<string, unknown>;
+    // Data can be: object, array of objects, or absent (fields at root).
+    const dataField = r.data;
+    const dataObj: Record<string, unknown> =
+      Array.isArray(dataField) && dataField.length > 0 && typeof dataField[0] === "object"
+        ? (dataField[0] as Record<string, unknown>)
+        : (dataField && typeof dataField === "object" ? (dataField as Record<string, unknown>) : {});
+
+    const pick = (k: string) => (dataObj[k] ?? r[k] ?? null);
+    const rawCredits = pick("credits") ?? pick("balance") ?? pick("wallet_balance");
+    const credits =
+      rawCredits == null ? null : Number(rawCredits);
+    const walletId = (pick("wallet_id") ?? pick("walletId")) as string | null;
+    const tenantId = (pick("tenant_id") ?? pick("tenantId")) as string | null;
+    const apiUserId = (pick("user_id") ?? pick("userId")) as string | null;
 
     await admin.from("sms_api_profiles").update({
       last_tested_at: new Date().toISOString(),
