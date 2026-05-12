@@ -1,0 +1,1 @@
+ALTER TYPE public.test_mode ADD VALUE IF NOT EXISTS 'real_send';

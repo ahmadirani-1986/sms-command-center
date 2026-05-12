@@ -646,7 +646,7 @@ export type Database = {
       app_role: "admin" | "operator" | "viewer"
       credential_mode: "backend_secret" | "manual_token"
       sender_status: "active" | "inactive" | "pending"
-      test_mode: "dry_run" | "real" | "load_test"
+      test_mode: "dry_run" | "real" | "load_test" | "real_send"
       test_run_status:
         | "draft"
         | "pending"
@@ -784,7 +784,7 @@ export const Constants = {
       app_role: ["admin", "operator", "viewer"],
       credential_mode: ["backend_secret", "manual_token"],
       sender_status: ["active", "inactive", "pending"],
-      test_mode: ["dry_run", "real", "load_test"],
+      test_mode: ["dry_run", "real", "load_test", "real_send"],
       test_run_status: [
         "draft",
         "pending",
