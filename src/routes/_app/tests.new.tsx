@@ -131,46 +131,42 @@ function NewTestPage() {
     }
     setCreating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("create-test-run", {
-        body: {
-          name: name.trim(),
-          api_profile_id: profileId,
-          mode,
-          message_body: message,
-          sender_id: senderKey === "none" ? null : senderId.trim(),
-          sender_field_key: senderKey,
-          custom_sender_field_key: senderKey === "custom" ? customKey.trim() : null,
-          recipients: recipients.map((r) => r.raw),
-          max_send_limit: load.total_request_limit,
-          batch_size: load.batch_size,
-          requests_per_sec: load.requests_per_sec,
-          concurrency: load.concurrency,
-          ramp_up_seconds: load.ramp_up_seconds,
-          timeout_seconds: load.timeout_seconds,
-          retry_count: load.retry_count,
-          auto_stop_error_rate_pct: load.auto_stop_error_rate_pct,
-        },
+      const { data, error } = await invokeFn<{ ok: boolean; run_id: string }>("create-test-run", {
+        name: name.trim(),
+        api_profile_id: profileId,
+        mode,
+        message_body: message,
+        sender_id: senderKey === "none" ? null : senderId.trim(),
+        sender_field_key: senderKey,
+        custom_sender_field_key: senderKey === "custom" ? customKey.trim() : null,
+        recipients: recipients.map((r) => r.raw),
+        max_send_limit: load.total_request_limit,
+        batch_size: load.batch_size,
+        requests_per_sec: load.requests_per_sec,
+        concurrency: load.concurrency,
+        ramp_up_seconds: load.ramp_up_seconds,
+        timeout_seconds: load.timeout_seconds,
+        retry_count: load.retry_count,
+        auto_stop_error_rate_pct: load.auto_stop_error_rate_pct,
       });
-      if (error || !(data as { ok?: boolean })?.ok) {
-        const msg = (data as { error?: string })?.error ?? error?.message ?? "Failed to create run";
-        toast.error(msg);
+      if (error || !data?.ok) {
+        toast.error(error ? formatInvokeError(error) : "Failed to create run", {
+          description: error?.reason ?? error?.code,
+          duration: 8000,
+        });
         return;
       }
-      const runId = (data as { run_id: string }).run_id;
+      const runId = data.run_id;
 
       if (mode === "dry_run") {
-        // Auto-start dry run
-        const { data: s, error: e2 } = await supabase.functions.invoke("start-sms-test-run", {
-          body: { run_id: runId },
-        });
-        if (e2 || (s as { error?: string })?.error) {
-          toast.error((s as { error?: string })?.error ?? e2?.message ?? "Failed to simulate");
+        const { data: s, error: e2 } = await invokeFn<{ ok: boolean }>("start-sms-test-run", { run_id: runId });
+        if (e2 || !s?.ok) {
+          toast.error(e2 ? formatInvokeError(e2) : "Failed to simulate", { duration: 8000 });
         } else {
           toast.success("Dry run completed");
         }
         navigate({ to: "/tests/$id", params: { id: runId } });
       } else {
-        // Open confirmation modal for real send
         setPendingRunId(runId);
         setConfirmOpen(true);
       }
