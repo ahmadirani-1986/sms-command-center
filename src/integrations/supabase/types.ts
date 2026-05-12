@@ -111,7 +111,8 @@ export type Database = {
           base_url: string
           created_at: string
           created_by: string | null
-          credential_secret_name: string
+          credential_mode: Database["public"]["Enums"]["credential_mode"]
+          credential_secret_name: string | null
           credits_method: string
           credits_path: string
           dlr_method: string
@@ -134,7 +135,8 @@ export type Database = {
           base_url: string
           created_at?: string
           created_by?: string | null
-          credential_secret_name: string
+          credential_mode?: Database["public"]["Enums"]["credential_mode"]
+          credential_secret_name?: string | null
           credits_method?: string
           credits_path?: string
           dlr_method?: string
@@ -157,7 +159,8 @@ export type Database = {
           base_url?: string
           created_at?: string
           created_by?: string | null
-          credential_secret_name?: string
+          credential_mode?: Database["public"]["Enums"]["credential_mode"]
+          credential_secret_name?: string | null
           credits_method?: string
           credits_path?: string
           dlr_method?: string
@@ -640,6 +643,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "operator" | "viewer"
+      credential_mode: "backend_secret" | "manual_token"
       sender_status: "active" | "inactive" | "pending"
       test_mode: "dry_run" | "real" | "load_test"
       test_run_status:
@@ -777,6 +781,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "operator", "viewer"],
+      credential_mode: ["backend_secret", "manual_token"],
       sender_status: ["active", "inactive", "pending"],
       test_mode: ["dry_run", "real", "load_test"],
       test_run_status: [
