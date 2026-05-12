@@ -263,7 +263,7 @@ Deno.serve(async (req) => {
         api_status: apiStatus, sms_message_id: sms, campaign_id: camp,
         dlr_code: dlrCode, current_status: currentStatus, remarks,
         latency_ms: latency,
-        request_payload: { url: sendUrl, headers: safeHeaders, body: payload },
+        request_payload: { ...req.payloadForLog, headers: safeHeaders, method: req.method },
         response_payload: parsed ?? { raw: redact(responseText.slice(0, 4000), token) },
         last_error: ok ? null : (errMsg ?? `HTTP ${httpStatus}`),
       });
