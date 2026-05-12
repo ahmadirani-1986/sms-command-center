@@ -155,7 +155,7 @@ function TestRunDetailsPage() {
             <Badge variant="outline">{run.mode}</Badge>
             <Badge variant={statusVariant(run.status)}>{run.status}</Badge>
             <span className="text-xs">{profileName && `Profile: ${profileName}`}</span>
-          </span> as unknown as string
+          </span>
         }
         actions={<>
           <Link to="/tests"><Button variant="ghost"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Button></Link>
