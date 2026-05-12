@@ -15,6 +15,7 @@ import {
   ScrollText,
   LogOut,
   ShieldAlert,
+  Terminal,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -28,6 +29,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/api-profiles", label: "API Profiles", icon: Settings2, adminOnly: true },
+  { to: "/raw-templates", label: "Raw API Template", icon: Terminal, adminOnly: true },
   { to: "/tests/new", label: "New Test", icon: PlayCircle },
   { to: "/tests", label: "Test Runs", icon: ListChecks },
   { to: "/dlr", label: "DLR Checker", icon: Radar },
