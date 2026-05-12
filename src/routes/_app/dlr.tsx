@@ -41,8 +41,9 @@ function DlrPage() {
   const [busy, setBusy] = useState(false);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [tokenDlg, setTokenDlg] = useState<{ open: boolean; pending: null | (() => Promise<void>) }>({ open: false, pending: null });
+  const [tokenDlgOpen, setTokenDlgOpen] = useState(false);
   const [tokenInput, setTokenInput] = useState("");
+  const [tokenResolver, setTokenResolver] = useState<{ resolve: (t: string | null) => void } | null>(null);
 
   useEffect(() => { (async () => {
     const { data: pr } = await supabase.from("sms_api_profiles").select("id,name,credential_mode,auth_header_name,base_url,dlr_path").eq("is_active", true).order("name");
