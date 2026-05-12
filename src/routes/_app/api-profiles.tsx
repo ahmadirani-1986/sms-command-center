@@ -548,14 +548,21 @@ function TestProfileDialog({
       });
       // Immediately wipe local copy regardless of outcome.
       setManualToken("");
-      if (error) {
-        toast.error(error.message);
-        setResult({ error: error.message });
-      } else {
-        setResult(data as Record<string, unknown>);
-        if ((data as { ok?: boolean })?.ok) toast.success("API responded successfully");
-        else toast.warning("API call completed with errors");
+      // The function returns 200 with { ok:false, error } for handled failures, so
+      // `data` carries the real reason. Only fall back to `error.message` for transport/auth.
+      let payload: Record<string, unknown> | null = (data as Record<string, unknown>) ?? null;
+      if (!payload && error) {
+        const ctx = (error as { context?: Response }).context;
+        if (ctx && typeof ctx.text === "function") {
+          try { const txt = await ctx.text(); payload = JSON.parse(txt); } catch { /* noop */ }
+        }
+        if (!payload) payload = { ok: false, error: error.message };
       }
+      setResult(payload);
+      const ok = (payload as { ok?: boolean })?.ok;
+      const errMsg = (payload as { error?: string })?.error;
+      if (ok) toast.success("API responded successfully");
+      else toast.error(errMsg ?? "Test failed");
       onTested();
     } finally {
       setRunning(false);
