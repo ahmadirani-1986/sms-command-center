@@ -21,6 +21,7 @@ import { Loader2, ShieldAlert, Send, FlaskConical, Upload } from "lucide-react";
 import { normalizePhone, formatPhoneDisplay, isValidNormalizedPhone } from "@/lib/phone";
 import { computeSegments } from "@/lib/sms";
 import { invokeFn, formatInvokeError } from "@/lib/invoke-fn";
+import { parseCurl, redactToken, renderTemplate } from "@/lib/curl";
 
 export const Route = createFileRoute("/_app/tests/new")({
   component: NewTestPage,
