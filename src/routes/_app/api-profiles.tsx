@@ -249,7 +249,11 @@ function ApiProfilesPage() {
                     )}
                   </TableCell>
                   <TableCell className="tabular-nums">
-                    {p.last_credits ?? <span className="text-muted-foreground">—</span>}
+                    {p.last_credits != null ? (
+                      Number(p.last_credits).toFixed(2)
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {p.last_tested_at ? new Date(p.last_tested_at).toLocaleString() : "Never"}
