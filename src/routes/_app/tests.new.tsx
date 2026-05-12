@@ -29,10 +29,16 @@ export const Route = createFileRoute("/_app/tests/new")({
 
 type Mode = "dry_run" | "real_send" | "load_test";
 type SenderKey = "none" | "source_addr" | "sender" | "senderId" | "from" | "senderName" | "custom";
+type ApiMode = "profile" | "raw_template";
 
 interface Profile {
   id: string; name: string; base_url: string; send_sms_path: string;
   auth_header_name: string; credential_mode: "backend_secret" | "manual_token";
+  credential_secret_name: string | null; is_active: boolean;
+}
+interface RawTemplate {
+  id: string; name: string; raw_curl: string; base_url: string;
+  credential_mode: "backend_secret" | "manual_token";
   credential_secret_name: string | null; is_active: boolean;
 }
 
