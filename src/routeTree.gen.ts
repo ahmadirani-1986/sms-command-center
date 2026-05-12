@@ -9,61 +9,310 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppSenderExperimentsRouteImport } from './routes/_app/sender-experiments'
+import { Route as AppDlrRouteImport } from './routes/_app/dlr'
+import { Route as AppAuditRouteImport } from './routes/_app/audit'
+import { Route as AppApiProfilesRouteImport } from './routes/_app/api-profiles'
+import { Route as AppAllowedSenderIdsRouteImport } from './routes/_app/allowed-sender-ids'
+import { Route as AppAllowedNumbersRouteImport } from './routes/_app/allowed-numbers'
+import { Route as AppTestsIndexRouteImport } from './routes/_app/tests.index'
+import { Route as AppTestsNewRouteImport } from './routes/_app/tests.new'
+import { Route as AppTestsIdRouteImport } from './routes/_app/tests.$id'
+import { Route as AppAdminUsersRouteImport } from './routes/_app/admin.users'
 
-const IndexRoute = IndexRouteImport.update({
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSenderExperimentsRoute = AppSenderExperimentsRouteImport.update({
+  id: '/sender-experiments',
+  path: '/sender-experiments',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDlrRoute = AppDlrRouteImport.update({
+  id: '/dlr',
+  path: '/dlr',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAuditRoute = AppAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppApiProfilesRoute = AppApiProfilesRouteImport.update({
+  id: '/api-profiles',
+  path: '/api-profiles',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAllowedSenderIdsRoute = AppAllowedSenderIdsRouteImport.update({
+  id: '/allowed-sender-ids',
+  path: '/allowed-sender-ids',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAllowedNumbersRoute = AppAllowedNumbersRouteImport.update({
+  id: '/allowed-numbers',
+  path: '/allowed-numbers',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTestsIndexRoute = AppTestsIndexRouteImport.update({
+  id: '/tests/',
+  path: '/tests/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTestsNewRoute = AppTestsNewRouteImport.update({
+  id: '/tests/new',
+  path: '/tests/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTestsIdRoute = AppTestsIdRouteImport.update({
+  id: '/tests/$id',
+  path: '/tests/$id',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAdminUsersRoute = AppAdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => AppRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AppIndexRoute
+  '/login': typeof LoginRoute
+  '/allowed-numbers': typeof AppAllowedNumbersRoute
+  '/allowed-sender-ids': typeof AppAllowedSenderIdsRoute
+  '/api-profiles': typeof AppApiProfilesRoute
+  '/audit': typeof AppAuditRoute
+  '/dlr': typeof AppDlrRoute
+  '/sender-experiments': typeof AppSenderExperimentsRoute
+  '/admin/users': typeof AppAdminUsersRoute
+  '/tests/$id': typeof AppTestsIdRoute
+  '/tests/new': typeof AppTestsNewRoute
+  '/tests/': typeof AppTestsIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/allowed-numbers': typeof AppAllowedNumbersRoute
+  '/allowed-sender-ids': typeof AppAllowedSenderIdsRoute
+  '/api-profiles': typeof AppApiProfilesRoute
+  '/audit': typeof AppAuditRoute
+  '/dlr': typeof AppDlrRoute
+  '/sender-experiments': typeof AppSenderExperimentsRoute
+  '/': typeof AppIndexRoute
+  '/admin/users': typeof AppAdminUsersRoute
+  '/tests/$id': typeof AppTestsIdRoute
+  '/tests/new': typeof AppTestsNewRoute
+  '/tests': typeof AppTestsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_app/allowed-numbers': typeof AppAllowedNumbersRoute
+  '/_app/allowed-sender-ids': typeof AppAllowedSenderIdsRoute
+  '/_app/api-profiles': typeof AppApiProfilesRoute
+  '/_app/audit': typeof AppAuditRoute
+  '/_app/dlr': typeof AppDlrRoute
+  '/_app/sender-experiments': typeof AppSenderExperimentsRoute
+  '/_app/': typeof AppIndexRoute
+  '/_app/admin/users': typeof AppAdminUsersRoute
+  '/_app/tests/$id': typeof AppTestsIdRoute
+  '/_app/tests/new': typeof AppTestsNewRoute
+  '/_app/tests/': typeof AppTestsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/allowed-numbers'
+    | '/allowed-sender-ids'
+    | '/api-profiles'
+    | '/audit'
+    | '/dlr'
+    | '/sender-experiments'
+    | '/admin/users'
+    | '/tests/$id'
+    | '/tests/new'
+    | '/tests/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/login'
+    | '/allowed-numbers'
+    | '/allowed-sender-ids'
+    | '/api-profiles'
+    | '/audit'
+    | '/dlr'
+    | '/sender-experiments'
+    | '/'
+    | '/admin/users'
+    | '/tests/$id'
+    | '/tests/new'
+    | '/tests'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/_app/allowed-numbers'
+    | '/_app/allowed-sender-ids'
+    | '/_app/api-profiles'
+    | '/_app/audit'
+    | '/_app/dlr'
+    | '/_app/sender-experiments'
+    | '/_app/'
+    | '/_app/admin/users'
+    | '/_app/tests/$id'
+    | '/_app/tests/new'
+    | '/_app/tests/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/': {
+      id: '/_app/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/sender-experiments': {
+      id: '/_app/sender-experiments'
+      path: '/sender-experiments'
+      fullPath: '/sender-experiments'
+      preLoaderRoute: typeof AppSenderExperimentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/dlr': {
+      id: '/_app/dlr'
+      path: '/dlr'
+      fullPath: '/dlr'
+      preLoaderRoute: typeof AppDlrRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/audit': {
+      id: '/_app/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AppAuditRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/api-profiles': {
+      id: '/_app/api-profiles'
+      path: '/api-profiles'
+      fullPath: '/api-profiles'
+      preLoaderRoute: typeof AppApiProfilesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/allowed-sender-ids': {
+      id: '/_app/allowed-sender-ids'
+      path: '/allowed-sender-ids'
+      fullPath: '/allowed-sender-ids'
+      preLoaderRoute: typeof AppAllowedSenderIdsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/allowed-numbers': {
+      id: '/_app/allowed-numbers'
+      path: '/allowed-numbers'
+      fullPath: '/allowed-numbers'
+      preLoaderRoute: typeof AppAllowedNumbersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tests/': {
+      id: '/_app/tests/'
+      path: '/tests'
+      fullPath: '/tests/'
+      preLoaderRoute: typeof AppTestsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tests/new': {
+      id: '/_app/tests/new'
+      path: '/tests/new'
+      fullPath: '/tests/new'
+      preLoaderRoute: typeof AppTestsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tests/$id': {
+      id: '/_app/tests/$id'
+      path: '/tests/$id'
+      fullPath: '/tests/$id'
+      preLoaderRoute: typeof AppTestsIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/admin/users': {
+      id: '/_app/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AppAdminUsersRouteImport
+      parentRoute: typeof AppRoute
     }
   }
 }
 
+interface AppRouteChildren {
+  AppAllowedNumbersRoute: typeof AppAllowedNumbersRoute
+  AppAllowedSenderIdsRoute: typeof AppAllowedSenderIdsRoute
+  AppApiProfilesRoute: typeof AppApiProfilesRoute
+  AppAuditRoute: typeof AppAuditRoute
+  AppDlrRoute: typeof AppDlrRoute
+  AppSenderExperimentsRoute: typeof AppSenderExperimentsRoute
+  AppIndexRoute: typeof AppIndexRoute
+  AppAdminUsersRoute: typeof AppAdminUsersRoute
+  AppTestsIdRoute: typeof AppTestsIdRoute
+  AppTestsNewRoute: typeof AppTestsNewRoute
+  AppTestsIndexRoute: typeof AppTestsIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppAllowedNumbersRoute: AppAllowedNumbersRoute,
+  AppAllowedSenderIdsRoute: AppAllowedSenderIdsRoute,
+  AppApiProfilesRoute: AppApiProfilesRoute,
+  AppAuditRoute: AppAuditRoute,
+  AppDlrRoute: AppDlrRoute,
+  AppSenderExperimentsRoute: AppSenderExperimentsRoute,
+  AppIndexRoute: AppIndexRoute,
+  AppAdminUsersRoute: AppAdminUsersRoute,
+  AppTestsIdRoute: AppTestsIdRoute,
+  AppTestsNewRoute: AppTestsNewRoute,
+  AppTestsIndexRoute: AppTestsIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
