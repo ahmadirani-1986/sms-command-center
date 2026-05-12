@@ -2,3 +2,12 @@ project_id = "kqiqotbhynmifrphcnqu"
 
 [functions.test-api-profile]
 verify_jwt = true
+
+[functions.create-test-run]
+verify_jwt = true
+
+[functions.start-sms-test-run]
+verify_jwt = true
+
+[functions.stop-sms-test-run]
+verify_jwt = true
