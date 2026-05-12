@@ -249,7 +249,11 @@ function ApiProfilesPage() {
                     )}
                   </TableCell>
                   <TableCell className="tabular-nums">
-                    {p.last_credits ?? <span className="text-muted-foreground">—</span>}
+                    {p.last_credits != null ? (
+                      Number(p.last_credits).toFixed(2)
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {p.last_tested_at ? new Date(p.last_tested_at).toLocaleString() : "Never"}
@@ -561,8 +565,14 @@ function TestProfileDialog({
       setResult(payload);
       const ok = (payload as { ok?: boolean })?.ok;
       const errMsg = (payload as { error?: string })?.error;
-      if (ok) toast.success("API responded successfully");
-      else toast.error(errMsg ?? "Test failed");
+      const credits = (payload as { credits?: number | null })?.credits;
+      if (ok) {
+        toast.success(
+          credits != null
+            ? `API responded successfully — Credits: ${credits}`
+            : "API responded successfully",
+        );
+      } else toast.error(errMsg ?? "Test failed");
       onTested();
     } finally {
       setRunning(false);
