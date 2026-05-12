@@ -139,22 +139,52 @@ Deno.serve(async (req) => {
       }
     }
 
-    const resolvedSenderKey = run.sender_field_key && run.sender_field_key !== "none"
+    const resolvedSenderKey = !isRaw && run.sender_field_key && run.sender_field_key !== "none"
       ? resolveSenderKey(run.sender_field_key, run.custom_sender_field_key) : null;
+
+    // Build a per-recipient request. In raw mode, render & parse the cURL template; otherwise build JSON payload.
+    function buildRequest(rec: any): { url: string; method: string; headers: Record<string, string>; body: string | null; payloadForLog: any } {
+      if (isRaw) {
+        const rendered = renderTemplate(template.raw_curl, {
+          base_url: template.base_url,
+          api_token: token!,
+          message: run.message_body,
+          to: rec.phone_normalized,
+          sender: run.sender_id ?? "",
+        });
+        const parsed = parseCurl(rendered);
+        let bodyJson: any = parsed.body;
+        try { if (parsed.body) bodyJson = JSON.parse(parsed.body); } catch { /* keep raw text */ }
+        return {
+          url: parsed.url, method: parsed.method, headers: parsed.headers, body: parsed.body,
+          payloadForLog: { url: parsed.url, body: bodyJson, rendered_preview: redactToken(rendered, token) },
+        };
+      }
+      const payload: Record<string, unknown> = { message: run.message_body, to: rec.phone_normalized };
+      if (resolvedSenderKey) payload[resolvedSenderKey] = run.sender_id;
+      payload["message"] = run.message_body;
+      payload["to"] = rec.phone_normalized;
+      const headers = buildHeaders();
+      return {
+        url: sendUrl, method: profile.send_sms_method || "POST", headers, body: JSON.stringify(payload),
+        payloadForLog: { url: sendUrl, body: payload },
+      };
+    }
 
     const targets = eligible.slice(0, sendCount);
 
     // ==== Dry run path ====
     if (!isReal) {
       const rows = targets.map((r: any) => {
-        const payload: Record<string, unknown> = { message: run.message_body, to: r.phone_normalized };
-        if (resolvedSenderKey) payload[resolvedSenderKey] = run.sender_id;
+        const req = buildRequest(r);
+        const safeHeaders = sanitizeHeadersForLog(req.headers, headerName);
         return {
           test_run_id: run_id, recipient_id: r.id,
           phone_original: r.phone_original, phone_normalized: r.phone_normalized,
           attempt_number: 1, status: "success",
           http_status: 200, api_status: "simulated",
-          request_payload: payload, response_payload: { simulated: true },
+          request_payload: { ...req.payloadForLog, headers: safeHeaders, method: req.method },
+          response_payload: { simulated: true },
           latency_ms: 0,
         };
       });
@@ -180,30 +210,35 @@ Deno.serve(async (req) => {
     }
 
     async function sendOne(rec: any): Promise<void> {
-      const payload: Record<string, unknown> = { message: run.message_body, to: rec.phone_normalized };
-      if (resolvedSenderKey) payload[resolvedSenderKey] = run.sender_id;
-      // Defensive: never let sender field overwrite required keys
-      payload["message"] = run.message_body;
-      payload["to"] = rec.phone_normalized;
-
-      const headers = buildHeaders();
-      const safeHeaders = sanitizeHeadersForLog(headers, headerName);
+      let req: ReturnType<typeof buildRequest>;
+      try { req = buildRequest(rec); }
+      catch (e) {
+        submitted++; failed++;
+        await admin.from("sms_test_results").insert({
+          test_run_id: run_id, recipient_id: rec.id,
+          phone_original: rec.phone_original, phone_normalized: rec.phone_normalized,
+          attempt_number: 1, status: "failed",
+          last_error: `Template error: ${(e as Error).message}`,
+        });
+        return;
+      }
+      const safeHeaders = sanitizeHeadersForLog(req.headers, headerName);
       const t0 = Date.now();
       let httpStatus = 0, responseText = "", parsed: any = null, errMsg: string | null = null;
       try {
         const ctrl = new AbortController();
         const to = setTimeout(() => ctrl.abort(), Math.max(5, Math.min(run.timeout_seconds || 30, 60)) * 1000);
-        const resp = await fetch(sendUrl, {
-          method: profile.send_sms_method || "POST",
-          headers,
-          body: JSON.stringify(payload),
+        const resp = await fetch(req.url, {
+          method: req.method,
+          headers: req.headers,
+          body: req.body ?? undefined,
           signal: ctrl.signal,
         });
         clearTimeout(to);
         httpStatus = resp.status;
         responseText = await resp.text();
         try { parsed = JSON.parse(responseText); } catch { /* keep raw */ }
-      } catch (e) {
+      } catch (e: any) {
         errMsg = redact(String(e?.message ?? e), token);
       }
       const latency = Date.now() - t0;
@@ -212,12 +247,13 @@ Deno.serve(async (req) => {
       const status = ok ? "success" : "failed";
       submitted++; if (ok) success++; else failed++;
 
-      const sms = parsed?.smsMessageId ?? parsed?.sms_message_id ?? null;
-      const camp = parsed?.campaignId ?? parsed?.campaign_id ?? null;
-      const dlrCode = parsed?.dlrCode ?? parsed?.dlr_code ?? null;
-      const currentStatus = parsed?.currentStatus ?? parsed?.current_status ?? null;
-      const apiStatus = parsed?.status ?? null;
-      const remarks = parsed?.remarks ?? null;
+      const dataObj = Array.isArray(parsed?.data) ? parsed.data[0] : null;
+      const sms = dataObj?.smsMessageId ?? parsed?.smsMessageId ?? parsed?.sms_message_id ?? null;
+      const camp = dataObj?.smsCampaignId ?? dataObj?.campaignId ?? parsed?.campaignId ?? parsed?.campaign_id ?? null;
+      const dlrCode = dataObj?.dlrCode ?? parsed?.dlrCode ?? parsed?.dlr_code ?? null;
+      const currentStatus = dataObj?.currentStatus ?? parsed?.currentStatus ?? parsed?.current_status ?? null;
+      const apiStatus = dataObj?.status ?? parsed?.status ?? null;
+      const remarks = dataObj?.remarks ?? parsed?.remarks ?? null;
 
       await admin.from("sms_test_results").insert({
         test_run_id: run_id, recipient_id: rec.id,
