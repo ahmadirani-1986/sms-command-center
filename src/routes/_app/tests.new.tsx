@@ -244,38 +244,71 @@ function NewTestPage() {
               <Field label="Test name">
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Saudi pilot QA" />
               </Field>
-              <Field label="API profile">
-                <Select value={profileId} onValueChange={setProfileId}>
-                  <SelectTrigger><SelectValue placeholder="Select a profile" /></SelectTrigger>
-                  <SelectContent>
-                    {profiles.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}{" "}
-                        {p.credential_mode === "manual_token" && (
-                          <span className="text-warning text-xs ml-1">(manual token)</span>
-                        )}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {profileBlockedForOperator && (
-                  <p className="text-xs text-warning mt-1">
-                    This profile uses Manual Token mode. Admin only.
-                  </p>
-                )}
+              <Field label="API mode">
+                <Tabs value={apiMode} onValueChange={(v) => setApiMode(v as ApiMode)}>
+                  <TabsList>
+                    <TabsTrigger value="profile">Structured API Profile</TabsTrigger>
+                    <TabsTrigger value="raw_template">Raw API Template</TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </Field>
             </div>
-            <Field label="Test mode">
-              <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
-                <TabsList>
-                  <TabsTrigger value="dry_run"><FlaskConical className="h-3.5 w-3.5 mr-1" /> Dry Run</TabsTrigger>
-                  <TabsTrigger value="real_send"><Send className="h-3.5 w-3.5 mr-1" /> Controlled Real Send</TabsTrigger>
-                  <TabsTrigger value="load_test">Load Test</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              {apiMode === "profile" ? (
+                <Field label="API profile">
+                  <Select value={profileId} onValueChange={setProfileId}>
+                    <SelectTrigger><SelectValue placeholder="Select a profile" /></SelectTrigger>
+                    <SelectContent>
+                      {profiles.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                          {p.credential_mode === "manual_token" && (
+                            <span className="text-warning text-xs ml-1">(manual token)</span>
+                          )}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              ) : (
+                <Field label="Raw API template">
+                  <Select value={templateId} onValueChange={setTemplateId}>
+                    <SelectTrigger><SelectValue placeholder="Select a template" /></SelectTrigger>
+                    <SelectContent>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                          {t.credential_mode === "manual_token" && (
+                            <span className="text-warning text-xs ml-1">(manual token)</span>
+                          )}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+              <Field label="Test mode">
+                <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
+                  <TabsList>
+                    <TabsTrigger value="dry_run"><FlaskConical className="h-3.5 w-3.5 mr-1" /> Dry Run</TabsTrigger>
+                    <TabsTrigger value="real_send"><Send className="h-3.5 w-3.5 mr-1" /> Real Send</TabsTrigger>
+                    <TabsTrigger value="load_test">Load Test</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </Field>
+            </div>
+            {profileBlockedForOperator && (
+              <p className="text-xs text-warning mt-1">Manual Token mode is admin-only.</p>
+            )}
+            {apiMode === "raw_template" && template && (
+              <div className="mt-2">
+                <Label className="text-xs text-muted-foreground">Template cURL preview (token redacted)</Label>
+                <pre className="rounded-md border bg-muted/30 p-3 text-[11px] font-mono max-h-40 overflow-auto whitespace-pre-wrap">
+{redactToken(template.raw_curl)}
+                </pre>
+              </div>
+            )}
           </Section>
-
           <Section title="Message">
             <Textarea
               rows={4}
