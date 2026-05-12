@@ -213,9 +213,11 @@ Deno.serve(async (req) => {
     const tenantId = (pick("tenant_id") ?? pick("tenantId")) as string | null;
     const apiUserId = (pick("user_id") ?? pick("userId")) as string | null;
 
+    const safeCredits = typeof credits === "number" && Number.isFinite(credits) ? credits : null;
+
     await admin.from("sms_api_profiles").update({
       last_tested_at: new Date().toISOString(),
-      last_credits: typeof credits === "number" ? credits : null,
+      last_credits: safeCredits,
       wallet_id: walletId,
       tenant_id: tenantId,
       user_id: apiUserId,
@@ -223,12 +225,17 @@ Deno.serve(async (req) => {
 
     return json({
       ok: true,
+      httpStatus,
       http_status: httpStatus,
       api_url: url,
+      latencyMs: latency,
       latency_ms: latency,
-      credits,
+      credits: safeCredits,
+      walletId,
       wallet_id: walletId,
+      tenantId,
       tenant_id: tenantId,
+      userId: apiUserId,
       user_id: apiUserId,
       response_preview: safeBody,
     }, 200);
