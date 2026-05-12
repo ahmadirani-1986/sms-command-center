@@ -506,16 +506,17 @@ function RealSendConfirmDialog({
     if (!canSubmit || !runId) return;
     setSubmitting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("start-sms-test-run", {
-        body: {
-          run_id: runId,
-          confirmation_text: confirmText,
-          manual_token: isManual ? manualToken : undefined,
-        },
+      const { data, error } = await invokeFn<{ ok: boolean }>("start-sms-test-run", {
+        run_id: runId,
+        confirmation_text: confirmText,
+        manual_token: isManual ? manualToken : undefined,
       });
       setManualToken("");
-      if (error || (data as { error?: string })?.error) {
-        toast.error((data as { error?: string })?.error ?? error?.message ?? "Send failed");
+      if (error || !data?.ok) {
+        toast.error(error ? formatInvokeError(error) : "Send failed", {
+          description: error?.code,
+          duration: 10000,
+        });
         return;
       }
       toast.success("Send started");
