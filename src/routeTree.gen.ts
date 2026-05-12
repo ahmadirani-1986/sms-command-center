@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppDlrRouteImport } from './routes/_app/dlr'
 import { Route as AppApiProfilesRouteImport } from './routes/_app/api-profiles'
+import { Route as AppAllowedNumbersRouteImport } from './routes/_app/allowed-numbers'
 import { Route as AppTestsIndexRouteImport } from './routes/_app/tests.index'
 import { Route as AppTestsNewRouteImport } from './routes/_app/tests.new'
 import { Route as AppTestsIdRouteImport } from './routes/_app/tests.$id'
@@ -42,6 +43,11 @@ const AppApiProfilesRoute = AppApiProfilesRouteImport.update({
   path: '/api-profiles',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAllowedNumbersRoute = AppAllowedNumbersRouteImport.update({
+  id: '/allowed-numbers',
+  path: '/allowed-numbers',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTestsIndexRoute = AppTestsIndexRouteImport.update({
   id: '/tests/',
   path: '/tests/',
@@ -61,6 +67,7 @@ const AppTestsIdRoute = AppTestsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/allowed-numbers': typeof AppAllowedNumbersRoute
   '/api-profiles': typeof AppApiProfilesRoute
   '/dlr': typeof AppDlrRoute
   '/tests/$id': typeof AppTestsIdRoute
@@ -69,6 +76,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/allowed-numbers': typeof AppAllowedNumbersRoute
   '/api-profiles': typeof AppApiProfilesRoute
   '/dlr': typeof AppDlrRoute
   '/': typeof AppIndexRoute
@@ -80,6 +88,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/allowed-numbers': typeof AppAllowedNumbersRoute
   '/_app/api-profiles': typeof AppApiProfilesRoute
   '/_app/dlr': typeof AppDlrRoute
   '/_app/': typeof AppIndexRoute
@@ -92,6 +101,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/allowed-numbers'
     | '/api-profiles'
     | '/dlr'
     | '/tests/$id'
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/allowed-numbers'
     | '/api-profiles'
     | '/dlr'
     | '/'
@@ -110,6 +121,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/login'
+    | '/_app/allowed-numbers'
     | '/_app/api-profiles'
     | '/_app/dlr'
     | '/_app/'
@@ -160,6 +172,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppApiProfilesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/allowed-numbers': {
+      id: '/_app/allowed-numbers'
+      path: '/allowed-numbers'
+      fullPath: '/allowed-numbers'
+      preLoaderRoute: typeof AppAllowedNumbersRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/tests/': {
       id: '/_app/tests/'
       path: '/tests'
@@ -185,6 +204,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAllowedNumbersRoute: typeof AppAllowedNumbersRoute
   AppApiProfilesRoute: typeof AppApiProfilesRoute
   AppDlrRoute: typeof AppDlrRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -194,6 +214,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAllowedNumbersRoute: AppAllowedNumbersRoute,
   AppApiProfilesRoute: AppApiProfilesRoute,
   AppDlrRoute: AppDlrRoute,
   AppIndexRoute: AppIndexRoute,
