@@ -242,7 +242,7 @@ function DlrPage() {
         </Table>
       </div>
 
-      <Dialog open={tokenDlg.open} onOpenChange={(o) => !o && setTokenDlg({ open: false, pending: null })}>
+      <Dialog open={tokenDlgOpen} onOpenChange={(o) => { if (!o) { setTokenDlgOpen(false); tokenResolver?.resolve(null); setTokenResolver(null); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Enter API token</DialogTitle>
@@ -250,8 +250,8 @@ function DlrPage() {
           </DialogHeader>
           <Input type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} placeholder="Paste API token" autoFocus />
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setTokenDlg({ open: false, pending: null })}>Cancel</Button>
-            <Button onClick={async () => { const fn = tokenDlg.pending; setTokenDlg({ open: false, pending: null }); if (fn) await fn(); }} disabled={!tokenInput}>Submit</Button>
+            <Button variant="ghost" onClick={() => { setTokenDlgOpen(false); tokenResolver?.resolve(null); setTokenResolver(null); }}>Cancel</Button>
+            <Button disabled={!tokenInput} onClick={() => { const t = tokenInput; setTokenInput(""); setTokenDlgOpen(false); tokenResolver?.resolve(t); setTokenResolver(null); }}>Submit</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
