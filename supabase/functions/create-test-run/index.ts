@@ -110,12 +110,12 @@ Deno.serve(async (req) => {
     console.log("create-test-run debug", {
       user_id: ctx.userId,
       role: ctx.isAdmin ? "admin" : ctx.isOperator ? "operator" : "viewer",
-      api_profile_id, mode,
+      api_mode, api_profile_id: api_profile_id ?? null, raw_template_id: raw_template_id ?? null, mode,
       recipient_count: recipientRows.length,
       whitelisted_count: whitelistedCount,
       sender_field_key: sender_field_key ?? "none",
       sender_id_set: !!sender_id,
-      credential_mode: profile.credential_mode,
+      credential_mode: profile?.credential_mode ?? template?.credential_mode,
       stage: "pre_insert",
     });
 
@@ -128,7 +128,9 @@ Deno.serve(async (req) => {
       mode,
       status: "draft",
       message_body,
-      sender_id: resolvedSenderKey ? sender_id : (api_mode === "raw_template" && sender_id ? sender_id : null),
+      sender_id: api_mode === "raw_template"
+        ? (sender_id ? String(sender_id).trim() : null)
+        : (resolvedSenderKey ? sender_id : null),
       sender_field_key: api_mode === "raw_template" ? "none" : (sender_field_key ?? "none"),
       custom_sender_field_key: api_mode === "profile" && sender_field_key === "custom" ? custom_sender_field_key : null,
       total_recipients: recipientRows.length,
@@ -136,10 +138,6 @@ Deno.serve(async (req) => {
       ramp_up_seconds, timeout_seconds, retry_count, auto_stop_error_rate_pct,
       created_by: ctx.userId,
     }).select().single();
-    if (rErr || !run) {
-      console.error("create-test-run insert failed", { stage, db_error: rErr?.message, code: rErr?.code });
-      return err(rErr?.message ?? "Failed to create run", "DB_INSERT_FAILED", 500, { db_code: rErr?.code });
-    }
     if (rErr || !run) {
       console.error("create-test-run insert failed", { stage, db_error: rErr?.message, code: rErr?.code });
       return err(rErr?.message ?? "Failed to create run", "DB_INSERT_FAILED", 500, { db_code: rErr?.code });
@@ -153,7 +151,8 @@ Deno.serve(async (req) => {
     }
 
     await audit(admin, ctx, "test_run.created", "sms_test_run", run.id, {
-      name: run.name, mode, total_recipients: recipientRows.length, profile_id: api_profile_id,
+      name: run.name, mode, total_recipients: recipientRows.length,
+      api_mode, api_profile_id: api_profile_id ?? null, raw_template_id: raw_template_id ?? null,
     });
     await logRun(admin, run.id, "info", "run.created", { mode, total_recipients: recipientRows.length });
 
