@@ -21,7 +21,8 @@ Deno.serve(async (req) => {
     stage = "parse_body";
     const body = await req.json();
     const {
-      name, api_profile_id, mode, message_body, sender_id,
+      name, api_profile_id, raw_template_id, api_mode = "profile",
+      mode, message_body, sender_id,
       sender_field_key, custom_sender_field_key,
       recipients,
       max_send_limit = 50, batch_size = 1, requests_per_sec = 1,
@@ -31,19 +32,35 @@ Deno.serve(async (req) => {
 
     stage = "validate";
     if (!name || typeof name !== "string") return err("name required", "VALIDATION_ERROR", 400, { field: "name" });
-    if (!api_profile_id) return err("api_profile_id required", "VALIDATION_ERROR", 400, { field: "api_profile_id" });
+    if (!["profile", "raw_template"].includes(api_mode)) return err("Invalid api_mode", "VALIDATION_ERROR", 400, { field: "api_mode" });
+    if (api_mode === "profile" && !api_profile_id) return err("api_profile_id required", "VALIDATION_ERROR", 400, { field: "api_profile_id" });
+    if (api_mode === "raw_template" && !raw_template_id) return err("raw_template_id required", "VALIDATION_ERROR", 400, { field: "raw_template_id" });
     if (!message_body || typeof message_body !== "string") return err("message_body required", "VALIDATION_ERROR", 400, { field: "message_body" });
     if (!["dry_run", "real_send", "load_test"].includes(mode)) return err(`Invalid mode '${mode}'`, "VALIDATION_ERROR", 400, { field: "mode" });
     if (!Array.isArray(recipients) || recipients.length === 0) return err("recipients required", "VALIDATION_ERROR", 400, { field: "recipients" });
 
-    stage = "load_profile";
-    const { data: profile, error: pErr } = await admin
-      .from("sms_api_profiles").select("*").eq("id", api_profile_id).single();
-    if (pErr || !profile) return err("API profile not found", "PROFILE_NOT_FOUND", 404, { db_error: pErr?.message });
-    if (!profile.is_active) return err("API profile is inactive", "PROFILE_INACTIVE", 400);
-
-    if (profile.credential_mode === "manual_token" && !ctx.isAdmin) {
-      return err("Manual Token profiles are admin-only", "FORBIDDEN", 403);
+    let profile: any = null;
+    let template: any = null;
+    if (api_mode === "profile") {
+      stage = "load_profile";
+      const { data, error: pErr } = await admin
+        .from("sms_api_profiles").select("*").eq("id", api_profile_id).single();
+      if (pErr || !data) return err("API profile not found", "PROFILE_NOT_FOUND", 404, { db_error: pErr?.message });
+      if (!data.is_active) return err("API profile is inactive", "PROFILE_INACTIVE", 400);
+      if (data.credential_mode === "manual_token" && !ctx.isAdmin) {
+        return err("Manual Token profiles are admin-only", "FORBIDDEN", 403);
+      }
+      profile = data;
+    } else {
+      stage = "load_template";
+      const { data, error: tErr } = await admin
+        .from("sms_raw_templates").select("*").eq("id", raw_template_id).single();
+      if (tErr || !data) return err("Raw template not found", "TEMPLATE_NOT_FOUND", 404, { db_error: tErr?.message });
+      if (!data.is_active) return err("Raw template is inactive", "TEMPLATE_INACTIVE", 400);
+      if (data.credential_mode === "manual_token" && !ctx.isAdmin) {
+        return err("Manual Token templates are admin-only", "FORBIDDEN", 403);
+      }
+      template = data;
     }
 
     stage = "validate_sender";
