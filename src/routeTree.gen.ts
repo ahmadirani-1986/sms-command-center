@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppSenderExperimentsRouteImport } from './routes/_app/sender-experiments'
 import { Route as AppDlrRouteImport } from './routes/_app/dlr'
 import { Route as AppApiProfilesRouteImport } from './routes/_app/api-profiles'
 import { Route as AppAllowedSenderIdsRouteImport } from './routes/_app/allowed-sender-ids'
@@ -32,6 +33,11 @@ const AppRoute = AppRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSenderExperimentsRoute = AppSenderExperimentsRouteImport.update({
+  id: '/sender-experiments',
+  path: '/sender-experiments',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDlrRoute = AppDlrRouteImport.update({
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/allowed-sender-ids': typeof AppAllowedSenderIdsRoute
   '/api-profiles': typeof AppApiProfilesRoute
   '/dlr': typeof AppDlrRoute
+  '/sender-experiments': typeof AppSenderExperimentsRoute
   '/tests/$id': typeof AppTestsIdRoute
   '/tests/new': typeof AppTestsNewRoute
   '/tests/': typeof AppTestsIndexRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByTo {
   '/allowed-sender-ids': typeof AppAllowedSenderIdsRoute
   '/api-profiles': typeof AppApiProfilesRoute
   '/dlr': typeof AppDlrRoute
+  '/sender-experiments': typeof AppSenderExperimentsRoute
   '/': typeof AppIndexRoute
   '/tests/$id': typeof AppTestsIdRoute
   '/tests/new': typeof AppTestsNewRoute
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   '/_app/allowed-sender-ids': typeof AppAllowedSenderIdsRoute
   '/_app/api-profiles': typeof AppApiProfilesRoute
   '/_app/dlr': typeof AppDlrRoute
+  '/_app/sender-experiments': typeof AppSenderExperimentsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/tests/$id': typeof AppTestsIdRoute
   '/_app/tests/new': typeof AppTestsNewRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/allowed-sender-ids'
     | '/api-profiles'
     | '/dlr'
+    | '/sender-experiments'
     | '/tests/$id'
     | '/tests/new'
     | '/tests/'
@@ -124,6 +134,7 @@ export interface FileRouteTypes {
     | '/allowed-sender-ids'
     | '/api-profiles'
     | '/dlr'
+    | '/sender-experiments'
     | '/'
     | '/tests/$id'
     | '/tests/new'
@@ -136,6 +147,7 @@ export interface FileRouteTypes {
     | '/_app/allowed-sender-ids'
     | '/_app/api-profiles'
     | '/_app/dlr'
+    | '/_app/sender-experiments'
     | '/_app/'
     | '/_app/tests/$id'
     | '/_app/tests/new'
@@ -168,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/sender-experiments': {
+      id: '/_app/sender-experiments'
+      path: '/sender-experiments'
+      fullPath: '/sender-experiments'
+      preLoaderRoute: typeof AppSenderExperimentsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dlr': {
@@ -227,6 +246,7 @@ interface AppRouteChildren {
   AppAllowedSenderIdsRoute: typeof AppAllowedSenderIdsRoute
   AppApiProfilesRoute: typeof AppApiProfilesRoute
   AppDlrRoute: typeof AppDlrRoute
+  AppSenderExperimentsRoute: typeof AppSenderExperimentsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppTestsIdRoute: typeof AppTestsIdRoute
   AppTestsNewRoute: typeof AppTestsNewRoute
@@ -238,6 +258,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAllowedSenderIdsRoute: AppAllowedSenderIdsRoute,
   AppApiProfilesRoute: AppApiProfilesRoute,
   AppDlrRoute: AppDlrRoute,
+  AppSenderExperimentsRoute: AppSenderExperimentsRoute,
   AppIndexRoute: AppIndexRoute,
   AppTestsIdRoute: AppTestsIdRoute,
   AppTestsNewRoute: AppTestsNewRoute,
