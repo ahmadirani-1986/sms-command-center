@@ -1,8 +1,13 @@
 // create-test-run: validates input, normalizes recipients, persists run + recipients.
 import { authenticate, audit, corsHeaders, isValidPhone, json, logRun, normalizePhone, resolveSenderKey } from "../_shared/sms.ts";
 
+function err(message: string, code: string, status = 400, extra: Record<string, unknown> = {}) {
+  return json({ ok: false, error: message, code, ...extra }, status);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  let stage = "init";
   try {
     const url = Deno.env.get("SUPABASE_URL")!;
     const anon = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!;
