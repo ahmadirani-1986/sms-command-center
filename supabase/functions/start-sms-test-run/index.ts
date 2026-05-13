@@ -1,5 +1,5 @@
 // start-sms-test-run: confirms, resolves token, checks credits, executes batches.
-import { authenticate, audit, corsHeaders, json, logRun, redact, resolveSenderKey, sanitizeHeadersForLog } from "../_shared/sms.ts";
+import { authenticate, audit, corsHeaders, json, logRun, redact, sanitizeHeadersForLog } from "../_shared/sms.ts";
 import { parseCurl, redactToken, renderTemplate } from "../_shared/curl.ts";
 
 const HARD_CAP = 50;
