@@ -58,6 +58,7 @@ function NewTestPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [templates, setTemplates] = useState<RawTemplate[]>([]);
   const [allowed, setAllowed] = useState<Set<string>>(new Set());
+  const [allowedSenders, setAllowedSenders] = useState<Set<string>>(new Set());
 
   const [name, setName] = useState("");
   const [apiMode, setApiMode] = useState<ApiMode>("profile");
@@ -66,8 +67,6 @@ function NewTestPage() {
   const [mode, setMode] = useState<Mode>("dry_run");
   const [message, setMessage] = useState("");
   const [senderId, setSenderId] = useState("");
-  const [senderKey, setSenderKey] = useState<SenderKey>("none");
-  const [customKey, setCustomKey] = useState("");
   const [recipientsText, setRecipientsText] = useState("");
   const [load, setLoad] = useState({ ...DEFAULTS });
   const [creating, setCreating] = useState(false);
