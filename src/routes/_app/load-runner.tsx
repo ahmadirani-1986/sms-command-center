@@ -324,7 +324,8 @@ function NewJobDialog({ open, onClose }: { open: boolean; onClose: () => void })
   }, [recipientsText]);
 
   const validCount = recipients.filter(r => r.valid).length;
-  const segments = useMemo(() => computeSegments(message), [message]);
+  const segInfo = useMemo(() => computeSegments(message), [message]);
+  const segments = segInfo.segments;
   const estCredits = segments * validCount;
 
   const requiresConfirm = mode === "real" && validCount > 50;
