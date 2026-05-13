@@ -1,5 +1,5 @@
 // create-test-run: validates input, normalizes recipients, persists run + recipients.
-import { authenticate, audit, corsHeaders, isValidPhone, json, logRun, normalizePhone, resolveSenderKey } from "../_shared/sms.ts";
+import { authenticate, audit, corsHeaders, isValidPhone, json, logRun, normalizePhone } from "../_shared/sms.ts";
 
 function err(message: string, code: string, status = 400, extra: Record<string, unknown> = {}) {
   return json({ ok: false, error: message, code, ...extra }, status);
@@ -64,11 +64,10 @@ Deno.serve(async (req) => {
     }
 
     stage = "validate_sender";
-    let resolvedSenderKey: string | null = null;
-    if (sender_field_key && sender_field_key !== "none") {
-      resolvedSenderKey = resolveSenderKey(sender_field_key, custom_sender_field_key);
-      if (!resolvedSenderKey) return err(`Invalid sender field key '${sender_field_key}'`, "VALIDATION_ERROR", 400, { field: "sender_field_key" });
-      if (!sender_id || !String(sender_id).trim()) return err("sender_id required when sender_field_key is set", "VALIDATION_ERROR", 400, { field: "sender_id" });
+    // Official iMissive contract: sender field key is always "senderId" for profile mode.
+    const senderIdValue: string | null = sender_id && String(sender_id).trim() ? String(sender_id).trim() : null;
+    if (api_mode === "profile" && mode === "real_send" && !senderIdValue) {
+      return err("Sender ID is required for Real Send", "VALIDATION_ERROR", 400, { field: "sender_id" });
     }
 
     stage = "normalize_recipients";
@@ -128,11 +127,9 @@ Deno.serve(async (req) => {
       mode,
       status: "draft",
       message_body,
-      sender_id: api_mode === "raw_template"
-        ? (sender_id ? String(sender_id).trim() : null)
-        : (resolvedSenderKey ? sender_id : null),
-      sender_field_key: api_mode === "raw_template" ? "none" : (sender_field_key ?? "none"),
-      custom_sender_field_key: api_mode === "profile" && sender_field_key === "custom" ? custom_sender_field_key : null,
+      sender_id: api_mode === "raw_template" ? senderIdValue : senderIdValue,
+      sender_field_key: api_mode === "raw_template" ? "none" : "senderId",
+      custom_sender_field_key: null,
       total_recipients: recipientRows.length,
       max_send_limit, batch_size, requests_per_sec, concurrency,
       ramp_up_seconds, timeout_seconds, retry_count, auto_stop_error_rate_pct,

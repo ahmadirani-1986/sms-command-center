@@ -1,5 +1,5 @@
 // start-sms-test-run: confirms, resolves token, checks credits, executes batches.
-import { authenticate, audit, corsHeaders, json, logRun, redact, resolveSenderKey, sanitizeHeadersForLog } from "../_shared/sms.ts";
+import { authenticate, audit, corsHeaders, json, logRun, redact, sanitizeHeadersForLog } from "../_shared/sms.ts";
 import { parseCurl, redactToken, renderTemplate } from "../_shared/curl.ts";
 
 const HARD_CAP = 50;
@@ -139,8 +139,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const resolvedSenderKey = !isRaw && run.sender_field_key && run.sender_field_key !== "none"
-      ? resolveSenderKey(run.sender_field_key, run.custom_sender_field_key) : null;
+    const resolvedSenderKey = !isRaw ? "senderId" : null;
 
     // Build a per-recipient request. In raw mode, render & parse the cURL template; otherwise build JSON payload.
     function buildRequest(rec: any): { url: string; method: string; headers: Record<string, string>; body: string | null; payloadForLog: any } {
@@ -150,7 +149,7 @@ Deno.serve(async (req) => {
           api_token: token!,
           message: run.message_body,
           to: rec.phone_normalized,
-          sender: run.sender_id ?? "",
+          senderId: run.sender_id ?? "",
         });
         const parsed = parseCurl(rendered);
         let bodyJson: any = parsed.body;
@@ -160,8 +159,8 @@ Deno.serve(async (req) => {
           payloadForLog: { url: parsed.url, body: bodyJson, rendered_preview: redactToken(rendered, token) },
         };
       }
-      const payload: Record<string, unknown> = { message: run.message_body, to: rec.phone_normalized };
-      if (resolvedSenderKey) payload[resolvedSenderKey] = run.sender_id;
+      const payload: Record<string, unknown> = {};
+      if (run.sender_id) payload["senderId"] = run.sender_id;
       payload["message"] = run.message_body;
       payload["to"] = rec.phone_normalized;
       const headers = buildHeaders();

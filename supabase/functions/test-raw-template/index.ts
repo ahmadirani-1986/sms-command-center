@@ -15,7 +15,8 @@ Deno.serve(async (req) => {
     if (!ctx.isAdmin) return json({ ok: false, error: "Admin only", code: "FORBIDDEN" }, 403);
 
     const body = await req.json();
-    const { template_id, to, message, sender, confirmation_text } = body ?? {};
+    const { template_id, to, message, sender, senderId, confirmation_text } = body ?? {};
+    const senderValue: string = (senderId ?? sender ?? "") as string;
     manualToken = typeof body?.manual_token === "string" && body.manual_token.length > 0 ? body.manual_token : null;
     if (!template_id) return json({ ok: false, error: "template_id required", code: "VALIDATION_ERROR" }, 400);
     if (!to || !message) return json({ ok: false, error: "to and message required", code: "VALIDATION_ERROR" }, 400);
@@ -54,7 +55,7 @@ Deno.serve(async (req) => {
       api_token: token,
       message: String(message),
       to: normalized,
-      sender: sender ? String(sender) : "",
+      senderId: senderValue,
     });
 
     let parsed;

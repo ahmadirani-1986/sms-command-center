@@ -197,7 +197,7 @@ function EditDialog({ tpl, onClose, onSaved }: { tpl: Template; onClose: () => v
         <DialogHeader>
           <DialogTitle>{tpl.id ? "Edit template" : "New template"}</DialogTitle>
           <DialogDescription>
-            Paste the complete SMS sending API as cURL. Use placeholders <code>{"{base_url}"}</code>, <code>{"{api_token}"}</code>, <code>{"{message}"}</code>, <code>{"{to}"}</code>, optional <code>{"{sender}"}</code>.
+            Paste the complete SMS sending API as cURL. Use placeholders <code>{"{base_url}"}</code>, <code>{"{api_token}"}</code>, <code>{"{senderId}"}</code>, <code>{"{message}"}</code>, <code>{"{to}"}</code>.
           </DialogDescription>
         </DialogHeader>
 
@@ -295,7 +295,7 @@ function TestDialog({ tpl, onClose }: { tpl: Template; onClose: () => void }) {
   const renderedPreview = useMemo(() => {
     try {
       const r = renderTemplate(tpl.raw_curl, {
-        base_url: tpl.base_url, api_token: previewToken, message, to: normalized, sender,
+        base_url: tpl.base_url, api_token: previewToken, message, to: normalized, senderId: sender,
       });
       return redactToken(r);
     } catch { return ""; }
@@ -318,7 +318,7 @@ function TestDialog({ tpl, onClose }: { tpl: Template; onClose: () => void }) {
         template_id: tpl.id,
         to: phone,
         message,
-        sender: sender || undefined,
+        senderId: sender || undefined,
         confirmation_text: confirmText,
         manual_token: isManual ? manualToken : undefined,
       });
@@ -351,8 +351,8 @@ function TestDialog({ tpl, onClose }: { tpl: Template; onClose: () => void }) {
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+966503333588" className="font-mono" />
             </div>
             <div>
-              <Label className="text-xs">Sender (optional, only if {"{sender}"} is in template)</Label>
-              <Input value={sender} onChange={(e) => setSender(e.target.value)} placeholder="numoplat" className="font-mono" />
+              <Label className="text-xs">Sender ID (maps to {"{senderId}"} in template)</Label>
+              <Input value={sender} onChange={(e) => setSender(e.target.value)} placeholder="iMissive" className="font-mono" />
             </div>
           </div>
           <div>

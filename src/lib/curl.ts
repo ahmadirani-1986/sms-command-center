@@ -79,16 +79,20 @@ export interface RenderVars {
   api_token: string;
   message: string;
   to: string;
+  senderId?: string;
+  /** @deprecated alias for senderId; kept for backward compatibility */
   sender?: string;
 }
 
 export function renderTemplate(text: string, vars: RenderVars): string {
+  const senderVal = vars.senderId ?? vars.sender ?? "";
   return text
     .replaceAll("{base_url}", trimSlash(vars.base_url))
     .replaceAll("{api_token}", vars.api_token)
     .replaceAll("{message}", jsonEscape(vars.message))
     .replaceAll("{to}", vars.to)
-    .replaceAll("{sender}", jsonEscape(vars.sender ?? ""));
+    .replaceAll("{senderId}", jsonEscape(senderVal))
+    .replaceAll("{sender}", jsonEscape(senderVal));
 }
 
 function trimSlash(u: string): string { return (u || "").replace(/\/+$/, ""); }
@@ -122,6 +126,7 @@ export const DEFAULT_TEMPLATE = `curl --location '{base_url}/api/v2/sms' \\
   --header 'Content-Type: application/json' \\
   --header 'X-API-Key: {api_token}' \\
   --data '{
+    "senderId": "{senderId}",
     "message": "{message}",
     "to": "{to}"
   }'`;

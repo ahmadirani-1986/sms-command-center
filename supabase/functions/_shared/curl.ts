@@ -83,23 +83,29 @@ export interface RenderVars {
   api_token: string;
   message: string;
   to: string;
+  senderId?: string;
+  /** @deprecated alias for senderId; kept for backward compatibility */
   sender?: string;
 }
 
 export function renderTemplate(text: string, vars: RenderVars): string {
+  const senderVal = vars.senderId ?? vars.sender ?? "";
   return text
     .replaceAll("{base_url}", trimSlash(vars.base_url))
     .replaceAll("{api_token}", vars.api_token)
     .replaceAll("{message}", jsonEscape(vars.message))
     .replaceAll("{to}", vars.to)
-    .replaceAll("{sender}", jsonEscape(vars.sender ?? ""));
+    .replaceAll("{senderId}", jsonEscape(senderVal))
+    .replaceAll("{sender}", jsonEscape(senderVal));
 }
 
-export function renderUrl(text: string, vars: Pick<RenderVars, "base_url" | "to" | "sender">): string {
+export function renderUrl(text: string, vars: Pick<RenderVars, "base_url" | "to" | "senderId" | "sender">): string {
+  const senderVal = vars.senderId ?? vars.sender ?? "";
   return text
     .replaceAll("{base_url}", trimSlash(vars.base_url))
     .replaceAll("{to}", vars.to)
-    .replaceAll("{sender}", vars.sender ?? "");
+    .replaceAll("{senderId}", senderVal)
+    .replaceAll("{sender}", senderVal);
 }
 
 function trimSlash(u: string): string { return (u || "").replace(/\/+$/, ""); }

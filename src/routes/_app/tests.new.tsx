@@ -28,7 +28,6 @@ export const Route = createFileRoute("/_app/tests/new")({
 });
 
 type Mode = "dry_run" | "real_send" | "load_test";
-type SenderKey = "none" | "source_addr" | "sender" | "senderId" | "from" | "senderName" | "custom";
 type ApiMode = "profile" | "raw_template";
 
 interface Profile {
@@ -59,6 +58,7 @@ function NewTestPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [templates, setTemplates] = useState<RawTemplate[]>([]);
   const [allowed, setAllowed] = useState<Set<string>>(new Set());
+  const [allowedSenders, setAllowedSenders] = useState<Set<string>>(new Set());
 
   const [name, setName] = useState("");
   const [apiMode, setApiMode] = useState<ApiMode>("profile");
@@ -67,8 +67,6 @@ function NewTestPage() {
   const [mode, setMode] = useState<Mode>("dry_run");
   const [message, setMessage] = useState("");
   const [senderId, setSenderId] = useState("");
-  const [senderKey, setSenderKey] = useState<SenderKey>("none");
-  const [customKey, setCustomKey] = useState("");
   const [recipientsText, setRecipientsText] = useState("");
   const [load, setLoad] = useState({ ...DEFAULTS });
   const [creating, setCreating] = useState(false);
@@ -76,7 +74,7 @@ function NewTestPage() {
 
   useEffect(() => {
     (async () => {
-      const [{ data: p }, { data: t }, { data: a }] = await Promise.all([
+      const [{ data: p }, { data: t }, { data: a }, { data: s }] = await Promise.all([
         supabase.from("sms_api_profiles")
           .select("id,name,base_url,send_sms_path,auth_header_name,credential_mode,credential_secret_name,is_active")
           .eq("is_active", true).order("name"),
@@ -84,10 +82,16 @@ function NewTestPage() {
           .select("id,name,raw_curl,base_url,credential_mode,credential_secret_name,is_active")
           .eq("is_active", true).order("name"),
         supabase.from("sms_test_allowed_numbers").select("phone_normalized").eq("is_active", true),
+        supabase.from("sms_allowed_sender_ids").select("sender_id,status"),
       ]);
       setProfiles((p ?? []) as Profile[]);
       setTemplates((t ?? []) as RawTemplate[]);
       setAllowed(new Set((a ?? []).map((x: { phone_normalized: string }) => x.phone_normalized)));
+      setAllowedSenders(new Set(
+        (s ?? [])
+          .filter((x: { status: string }) => x.status === "active")
+          .map((x: { sender_id: string }) => x.sender_id)
+      ));
     })();
   }, []);
 
@@ -119,18 +123,20 @@ function NewTestPage() {
     : recipients.filter((r) => r.valid && r.whitelisted).length;
   const estimatedUnits = segInfo.segments * eligibleCount;
 
-  // Sender validation
+  // Sender ID validation (official iMissive contract: senderId)
   const senderError = useMemo(() => {
-    if (senderKey === "none") return null;
-    if (!senderId.trim()) return "Sender ID is required when a sender field is selected";
-    if (senderKey === "custom") {
-      if (!customKey.trim()) return "Custom sender field key is required";
-      if (["message", "to"].includes(customKey)) return "Custom key cannot be 'message' or 'to'";
-      if (!/^[A-Za-z][A-Za-z0-9_-]{0,39}$/.test(customKey))
-        return "Custom key must match ^[A-Za-z][A-Za-z0-9_-]{0,39}$";
-    }
+    const trimmed = senderId.trim();
+    if (mode === "real_send" && !trimmed) return "Sender ID is required for Real Send";
+    if (trimmed && !/^[A-Za-z0-9 _-]{1,40}$/.test(trimmed)) return "Sender ID contains invalid characters";
     return null;
-  }, [senderKey, senderId, customKey]);
+  }, [senderId, mode]);
+
+  const senderNotApprovedWarning = useMemo(() => {
+    const trimmed = senderId.trim();
+    if (!trimmed) return null;
+    if (allowedSenders.size === 0) return null;
+    return allowedSenders.has(trimmed) ? null : `"${trimmed}" is not in Allowed Sender IDs`;
+  }, [senderId, allowedSenders]);
 
   const canCreate =
     !creating && !!name.trim() && !!message && eligibleCount > 0 && !senderError &&
@@ -155,11 +161,9 @@ function NewTestPage() {
         raw_template_id: apiMode === "raw_template" ? templateId : null,
         mode,
         message_body: message,
-        sender_id: apiMode === "raw_template"
-          ? (senderId.trim() || null)
-          : (senderKey === "none" ? null : senderId.trim()),
-        sender_field_key: apiMode === "raw_template" ? "none" : senderKey,
-        custom_sender_field_key: apiMode === "profile" && senderKey === "custom" ? customKey.trim() : null,
+        sender_id: senderId.trim() || null,
+        sender_field_key: apiMode === "raw_template" ? "none" : "senderId",
+        custom_sender_field_key: null,
         recipients: recipients.map((r) => r.raw),
         max_send_limit: load.total_request_limit,
         batch_size: load.batch_size,
@@ -325,40 +329,24 @@ function NewTestPage() {
             </div>
           </Section>
 
-          <Section title="Sender ID override (experimental)">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Sender field key">
-                <Select value={senderKey} onValueChange={(v) => setSenderKey(v as SenderKey)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">none</SelectItem>
-                    <SelectItem value="source_addr">source_addr</SelectItem>
-                    <SelectItem value="sender">sender</SelectItem>
-                    <SelectItem value="senderId">senderId</SelectItem>
-                    <SelectItem value="from">from</SelectItem>
-                    <SelectItem value="senderName">senderName</SelectItem>
-                    <SelectItem value="custom">custom</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              {senderKey === "custom" && (
-                <Field label="Custom sender field key">
-                  <Input value={customKey} onChange={(e) => setCustomKey(e.target.value)}
-                    placeholder="e.g. originator" className="font-mono" />
-                </Field>
-              )}
-              {senderKey !== "none" && (
-                <Field label="Sender ID value">
-                  <Input value={senderId} onChange={(e) => setSenderId(e.target.value)} placeholder="numoplat" />
-                </Field>
-              )}
-            </div>
-            {senderKey !== "none" && (
+          <Section title="Sender ID">
+            <Field label={mode === "real_send" ? "Sender ID (required)" : "Sender ID"}>
+              <Input
+                value={senderId}
+                onChange={(e) => setSenderId(e.target.value)}
+                placeholder="iMissive"
+                className="font-mono"
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground mt-1">
+              Maps directly to <code className="font-mono">senderId</code> in the iMissive API body.
+            </p>
+            {senderNotApprovedWarning && (
               <Alert className="mt-3 border-warning/40 bg-warning/5">
                 <ShieldAlert className="h-4 w-4 text-warning" />
-                <AlertTitle className="text-warning">Sender ID override is experimental</AlertTitle>
+                <AlertTitle className="text-warning">Sender ID not in Allowed Sender IDs</AlertTitle>
                 <AlertDescription className="text-xs">
-                  It will only work if the selected API supports the selected sender field and the sender is approved for this account/route.
+                  {senderNotApprovedWarning}. The carrier may reject this send.
                 </AlertDescription>
               </Alert>
             )}
@@ -445,9 +433,7 @@ function NewTestPage() {
         runId={pendingRunId}
         profile={profile ?? null}
         message={message}
-        senderKey={senderKey}
-        senderId={senderId}
-        customKey={customKey}
+        senderId={senderId.trim()}
         recipients={recipients.filter((r) => r.valid && r.whitelisted).slice(0, Math.min(50, load.total_request_limit))}
         onClose={() => { setConfirmOpen(false); setPendingRunId(null); }}
         onSent={(runId) => navigate({ to: "/tests/$id", params: { id: runId } })}
@@ -511,10 +497,10 @@ function RecipientsPreview({ recipients, mode }: { recipients: Recipient[]; mode
 }
 
 function RealSendConfirmDialog({
-  open, runId, profile, message, senderKey, senderId, customKey, recipients, onClose, onSent, isAdmin,
+  open, runId, profile, message, senderId, recipients, onClose, onSent, isAdmin,
 }: {
   open: boolean; runId: string | null; profile: Profile | null;
-  message: string; senderKey: SenderKey; senderId: string; customKey: string;
+  message: string; senderId: string;
   recipients: Recipient[]; onClose: () => void; onSent: (runId: string) => void; isAdmin: boolean;
 }) {
   const [confirmText, setConfirmText] = useState("");
@@ -541,12 +527,10 @@ function RealSendConfirmDialog({
     (profile.send_sms_path.startsWith("/") ? profile.send_sms_path : `/${profile.send_sms_path}`);
 
   const previewPayloads = recipients.slice(0, 3).map((r) => {
-    const p: Record<string, unknown> = { message, to: r.normalized };
-    const key =
-      senderKey === "none" ? null
-        : senderKey === "custom" ? customKey
-        : senderKey;
-    if (key && senderId) p[key] = senderId;
+    const p: Record<string, unknown> = {};
+    if (senderId) p.senderId = senderId;
+    p.message = message;
+    p.to = r.normalized;
     return p;
   });
 
