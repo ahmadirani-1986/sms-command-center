@@ -64,11 +64,10 @@ Deno.serve(async (req) => {
     }
 
     stage = "validate_sender";
-    let resolvedSenderKey: string | null = null;
-    if (sender_field_key && sender_field_key !== "none") {
-      resolvedSenderKey = resolveSenderKey(sender_field_key, custom_sender_field_key);
-      if (!resolvedSenderKey) return err(`Invalid sender field key '${sender_field_key}'`, "VALIDATION_ERROR", 400, { field: "sender_field_key" });
-      if (!sender_id || !String(sender_id).trim()) return err("sender_id required when sender_field_key is set", "VALIDATION_ERROR", 400, { field: "sender_id" });
+    // Official iMissive contract: sender field key is always "senderId" for profile mode.
+    const senderIdValue: string | null = sender_id && String(sender_id).trim() ? String(sender_id).trim() : null;
+    if (api_mode === "profile" && mode === "real_send" && !senderIdValue) {
+      return err("Sender ID is required for Real Send", "VALIDATION_ERROR", 400, { field: "sender_id" });
     }
 
     stage = "normalize_recipients";
