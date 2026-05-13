@@ -127,11 +127,9 @@ Deno.serve(async (req) => {
       mode,
       status: "draft",
       message_body,
-      sender_id: api_mode === "raw_template"
-        ? (sender_id ? String(sender_id).trim() : null)
-        : (resolvedSenderKey ? sender_id : null),
-      sender_field_key: api_mode === "raw_template" ? "none" : (sender_field_key ?? "none"),
-      custom_sender_field_key: api_mode === "profile" && sender_field_key === "custom" ? custom_sender_field_key : null,
+      sender_id: api_mode === "raw_template" ? senderIdValue : senderIdValue,
+      sender_field_key: api_mode === "raw_template" ? "none" : "senderId",
+      custom_sender_field_key: null,
       total_recipients: recipientRows.length,
       max_send_limit, batch_size, requests_per_sec, concurrency,
       ramp_up_seconds, timeout_seconds, retry_count, auto_stop_error_rate_pct,
