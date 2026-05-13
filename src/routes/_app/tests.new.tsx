@@ -28,7 +28,6 @@ export const Route = createFileRoute("/_app/tests/new")({
 });
 
 type Mode = "dry_run" | "real_send" | "load_test";
-type SenderKey = "none" | "source_addr" | "sender" | "senderId" | "from" | "senderName" | "custom";
 type ApiMode = "profile" | "raw_template";
 
 interface Profile {
