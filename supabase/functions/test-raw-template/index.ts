@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       api_token: token,
       message: String(message),
       to: normalized,
-      sender: sender ? String(sender) : "",
+      senderId: senderValue,
     });
 
     let parsed;
