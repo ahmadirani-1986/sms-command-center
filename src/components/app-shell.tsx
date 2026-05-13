@@ -33,6 +33,7 @@ const NAV: NavItem[] = [
   { to: "/raw-templates", label: "Raw API Template", icon: Terminal, adminOnly: true },
   { to: "/tests/new", label: "New Test", icon: PlayCircle },
   { to: "/tests", label: "Test Runs", icon: ListChecks },
+  { to: "/load-runner", label: "Load Runner Jobs", icon: Gauge, adminOnly: true },
   { to: "/dlr", label: "DLR Checker", icon: Radar },
   { to: "/allowed-numbers", label: "Allowed Numbers", icon: PhoneCall, adminOnly: true },
   { to: "/allowed-sender-ids", label: "Allowed Sender IDs", icon: Tag, adminOnly: true },
