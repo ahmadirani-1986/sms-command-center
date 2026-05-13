@@ -433,9 +433,7 @@ function NewTestPage() {
         runId={pendingRunId}
         profile={profile ?? null}
         message={message}
-        senderKey={senderKey}
-        senderId={senderId}
-        customKey={customKey}
+        senderId={senderId.trim()}
         recipients={recipients.filter((r) => r.valid && r.whitelisted).slice(0, Math.min(50, load.total_request_limit))}
         onClose={() => { setConfirmOpen(false); setPendingRunId(null); }}
         onSent={(runId) => navigate({ to: "/tests/$id", params: { id: runId } })}
