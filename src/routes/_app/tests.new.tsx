@@ -161,11 +161,9 @@ function NewTestPage() {
         raw_template_id: apiMode === "raw_template" ? templateId : null,
         mode,
         message_body: message,
-        sender_id: apiMode === "raw_template"
-          ? (senderId.trim() || null)
-          : (senderKey === "none" ? null : senderId.trim()),
-        sender_field_key: apiMode === "raw_template" ? "none" : senderKey,
-        custom_sender_field_key: apiMode === "profile" && senderKey === "custom" ? customKey.trim() : null,
+        sender_id: senderId.trim() || null,
+        sender_field_key: apiMode === "raw_template" ? "none" : "senderId",
+        custom_sender_field_key: null,
         recipients: recipients.map((r) => r.raw),
         max_send_limit: load.total_request_limit,
         batch_size: load.batch_size,
