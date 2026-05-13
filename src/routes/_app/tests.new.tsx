@@ -329,40 +329,24 @@ function NewTestPage() {
             </div>
           </Section>
 
-          <Section title="Sender ID override (experimental)">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Sender field key">
-                <Select value={senderKey} onValueChange={(v) => setSenderKey(v as SenderKey)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">none</SelectItem>
-                    <SelectItem value="source_addr">source_addr</SelectItem>
-                    <SelectItem value="sender">sender</SelectItem>
-                    <SelectItem value="senderId">senderId</SelectItem>
-                    <SelectItem value="from">from</SelectItem>
-                    <SelectItem value="senderName">senderName</SelectItem>
-                    <SelectItem value="custom">custom</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              {senderKey === "custom" && (
-                <Field label="Custom sender field key">
-                  <Input value={customKey} onChange={(e) => setCustomKey(e.target.value)}
-                    placeholder="e.g. originator" className="font-mono" />
-                </Field>
-              )}
-              {senderKey !== "none" && (
-                <Field label="Sender ID value">
-                  <Input value={senderId} onChange={(e) => setSenderId(e.target.value)} placeholder="numoplat" />
-                </Field>
-              )}
-            </div>
-            {senderKey !== "none" && (
+          <Section title="Sender ID">
+            <Field label={mode === "real_send" ? "Sender ID (required)" : "Sender ID"}>
+              <Input
+                value={senderId}
+                onChange={(e) => setSenderId(e.target.value)}
+                placeholder="iMissive"
+                className="font-mono"
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground mt-1">
+              Maps directly to <code className="font-mono">senderId</code> in the iMissive API body.
+            </p>
+            {senderNotApprovedWarning && (
               <Alert className="mt-3 border-warning/40 bg-warning/5">
                 <ShieldAlert className="h-4 w-4 text-warning" />
-                <AlertTitle className="text-warning">Sender ID override is experimental</AlertTitle>
+                <AlertTitle className="text-warning">Sender ID not in Allowed Sender IDs</AlertTitle>
                 <AlertDescription className="text-xs">
-                  It will only work if the selected API supports the selected sender field and the sender is approved for this account/route.
+                  {senderNotApprovedWarning}. The carrier may reject this send.
                 </AlertDescription>
               </Alert>
             )}
