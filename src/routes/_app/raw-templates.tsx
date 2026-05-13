@@ -295,7 +295,7 @@ function TestDialog({ tpl, onClose }: { tpl: Template; onClose: () => void }) {
   const renderedPreview = useMemo(() => {
     try {
       const r = renderTemplate(tpl.raw_curl, {
-        base_url: tpl.base_url, api_token: previewToken, message, to: normalized, sender,
+        base_url: tpl.base_url, api_token: previewToken, message, to: normalized, senderId: sender,
       });
       return redactToken(r);
     } catch { return ""; }
