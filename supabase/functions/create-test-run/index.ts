@@ -1,5 +1,5 @@
 // create-test-run: validates input, normalizes recipients, persists run + recipients.
-import { authenticate, audit, corsHeaders, isValidPhone, json, logRun, normalizePhone, resolveSenderKey } from "../_shared/sms.ts";
+import { authenticate, audit, corsHeaders, isValidPhone, json, logRun, normalizePhone } from "../_shared/sms.ts";
 
 function err(message: string, code: string, status = 400, extra: Record<string, unknown> = {}) {
   return json({ ok: false, error: message, code, ...extra }, status);
