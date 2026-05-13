@@ -197,7 +197,7 @@ function EditDialog({ tpl, onClose, onSaved }: { tpl: Template; onClose: () => v
         <DialogHeader>
           <DialogTitle>{tpl.id ? "Edit template" : "New template"}</DialogTitle>
           <DialogDescription>
-            Paste the complete SMS sending API as cURL. Use placeholders <code>{"{base_url}"}</code>, <code>{"{api_token}"}</code>, <code>{"{message}"}</code>, <code>{"{to}"}</code>, optional <code>{"{sender}"}</code>.
+            Paste the complete SMS sending API as cURL. Use placeholders <code>{"{base_url}"}</code>, <code>{"{api_token}"}</code>, <code>{"{senderId}"}</code>, <code>{"{message}"}</code>, <code>{"{to}"}</code>.
           </DialogDescription>
         </DialogHeader>
 
