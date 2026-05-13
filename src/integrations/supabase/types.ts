@@ -74,6 +74,277 @@ export type Database = {
         }
         Relationships: []
       }
+      load_runner_heartbeats: {
+        Row: {
+          current_rps: number
+          id: string
+          in_flight: number
+          job_id: string | null
+          last_seen_at: string
+          notes: string | null
+          processed_count: number
+          runner_id: string
+        }
+        Insert: {
+          current_rps?: number
+          id?: string
+          in_flight?: number
+          job_id?: string | null
+          last_seen_at?: string
+          notes?: string | null
+          processed_count?: number
+          runner_id: string
+        }
+        Update: {
+          current_rps?: number
+          id?: string
+          in_flight?: number
+          job_id?: string | null
+          last_seen_at?: string
+          notes?: string | null
+          processed_count?: number
+          runner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "load_runner_heartbeats_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "load_runner_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      load_runner_job_batches: {
+        Row: {
+          assigned_runner: string | null
+          batch_index: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          job_id: string
+          recipients: Json
+          started_at: string | null
+          status: Database["public"]["Enums"]["load_runner_batch_status"]
+        }
+        Insert: {
+          assigned_runner?: string | null
+          batch_index: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          job_id: string
+          recipients: Json
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["load_runner_batch_status"]
+        }
+        Update: {
+          assigned_runner?: string | null
+          batch_index?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          job_id?: string
+          recipients?: Json
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["load_runner_batch_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "load_runner_job_batches_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "load_runner_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      load_runner_job_results: {
+        Row: {
+          api_status: string | null
+          batch_id: string | null
+          created_at: string
+          error: string | null
+          http_status: number | null
+          id: string
+          job_id: string
+          latency_ms: number | null
+          phone_normalized: string | null
+          phone_original: string | null
+          request_payload: Json | null
+          response_payload: Json | null
+          sms_message_id: string | null
+          status: string
+        }
+        Insert: {
+          api_status?: string | null
+          batch_id?: string | null
+          created_at?: string
+          error?: string | null
+          http_status?: number | null
+          id?: string
+          job_id: string
+          latency_ms?: number | null
+          phone_normalized?: string | null
+          phone_original?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          sms_message_id?: string | null
+          status?: string
+        }
+        Update: {
+          api_status?: string | null
+          batch_id?: string | null
+          created_at?: string
+          error?: string | null
+          http_status?: number | null
+          id?: string
+          job_id?: string
+          latency_ms?: number | null
+          phone_normalized?: string | null
+          phone_original?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          sms_message_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "load_runner_job_results_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "load_runner_job_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "load_runner_job_results_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "load_runner_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      load_runner_jobs: {
+        Row: {
+          actual_rps: number
+          api_mode: string
+          api_profile_id: string | null
+          api_status_histogram: Json
+          avg_latency_ms: number | null
+          batch_size: number
+          claimed_at: string | null
+          claimed_by_runner: string | null
+          completed_at: string | null
+          concurrency: number
+          created_at: string
+          created_by: string | null
+          dlr_status_histogram: Json
+          failed_count: number
+          http_status_histogram: Json
+          id: string
+          kill_switch: boolean
+          large_send_confirmed: boolean
+          max_recipients: number
+          message_body: string
+          mode: Database["public"]["Enums"]["load_runner_mode"]
+          name: string
+          p95_latency_ms: number | null
+          p99_latency_ms: number | null
+          pause_flag: boolean
+          pending_count: number
+          ramp_up_seconds: number
+          raw_template_id: string | null
+          requests_per_sec: number
+          sender_id: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["load_runner_status"]
+          stop_on_error_rate_pct: number
+          submitted_count: number
+          success_count: number
+          total_recipients: number
+          updated_at: string
+        }
+        Insert: {
+          actual_rps?: number
+          api_mode?: string
+          api_profile_id?: string | null
+          api_status_histogram?: Json
+          avg_latency_ms?: number | null
+          batch_size?: number
+          claimed_at?: string | null
+          claimed_by_runner?: string | null
+          completed_at?: string | null
+          concurrency?: number
+          created_at?: string
+          created_by?: string | null
+          dlr_status_histogram?: Json
+          failed_count?: number
+          http_status_histogram?: Json
+          id?: string
+          kill_switch?: boolean
+          large_send_confirmed?: boolean
+          max_recipients?: number
+          message_body: string
+          mode?: Database["public"]["Enums"]["load_runner_mode"]
+          name: string
+          p95_latency_ms?: number | null
+          p99_latency_ms?: number | null
+          pause_flag?: boolean
+          pending_count?: number
+          ramp_up_seconds?: number
+          raw_template_id?: string | null
+          requests_per_sec?: number
+          sender_id?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["load_runner_status"]
+          stop_on_error_rate_pct?: number
+          submitted_count?: number
+          success_count?: number
+          total_recipients?: number
+          updated_at?: string
+        }
+        Update: {
+          actual_rps?: number
+          api_mode?: string
+          api_profile_id?: string | null
+          api_status_histogram?: Json
+          avg_latency_ms?: number | null
+          batch_size?: number
+          claimed_at?: string | null
+          claimed_by_runner?: string | null
+          completed_at?: string | null
+          concurrency?: number
+          created_at?: string
+          created_by?: string | null
+          dlr_status_histogram?: Json
+          failed_count?: number
+          http_status_histogram?: Json
+          id?: string
+          kill_switch?: boolean
+          large_send_confirmed?: boolean
+          max_recipients?: number
+          message_body?: string
+          mode?: Database["public"]["Enums"]["load_runner_mode"]
+          name?: string
+          p95_latency_ms?: number | null
+          p99_latency_ms?: number | null
+          pause_flag?: boolean
+          pending_count?: number
+          ramp_up_seconds?: number
+          raw_template_id?: string | null
+          requests_per_sec?: number
+          sender_id?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["load_runner_status"]
+          stop_on_error_rate_pct?: number
+          submitted_count?: number
+          success_count?: number
+          total_recipients?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sms_allowed_sender_ids: {
         Row: {
           created_at: string
@@ -690,6 +961,17 @@ export type Database = {
     Enums: {
       app_role: "admin" | "operator" | "viewer"
       credential_mode: "backend_secret" | "manual_token"
+      load_runner_batch_status: "pending" | "in_progress" | "done" | "failed"
+      load_runner_mode: "dry_run" | "real"
+      load_runner_status:
+        | "draft"
+        | "queued"
+        | "running"
+        | "pausing"
+        | "paused"
+        | "completed"
+        | "failed"
+        | "stopped"
       sender_status: "active" | "inactive" | "pending"
       test_mode: "dry_run" | "real" | "load_test" | "real_send"
       test_run_status:
@@ -828,6 +1110,18 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "operator", "viewer"],
       credential_mode: ["backend_secret", "manual_token"],
+      load_runner_batch_status: ["pending", "in_progress", "done", "failed"],
+      load_runner_mode: ["dry_run", "real"],
+      load_runner_status: [
+        "draft",
+        "queued",
+        "running",
+        "pausing",
+        "paused",
+        "completed",
+        "failed",
+        "stopped",
+      ],
       sender_status: ["active", "inactive", "pending"],
       test_mode: ["dry_run", "real", "load_test", "real_send"],
       test_run_status: [

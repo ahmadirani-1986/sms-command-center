@@ -21,3 +21,18 @@ verify_jwt = true
 [functions.test-raw-template]
 verify_jwt = true
 
+[functions.create-load-runner-job]
+verify_jwt = true
+
+[functions.stop-load-runner-job]
+verify_jwt = true
+
+[functions.pause-load-runner-job]
+verify_jwt = true
+
+[functions.resume-load-runner-job]
+verify_jwt = true
+
+[functions.get-load-runner-job-status]
+verify_jwt = true
+
