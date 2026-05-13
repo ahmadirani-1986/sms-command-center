@@ -266,8 +266,18 @@ Deno.serve(async (req) => {
         response_payload: parsed ?? { raw: redact(responseText.slice(0, 4000), token) },
         last_error: ok ? null : (errMsg ?? `HTTP ${httpStatus}`),
       });
+      let bodyForLog: any = req.body;
+      try { if (req.body) bodyForLog = JSON.parse(req.body); } catch { /* keep raw */ }
       await logRun(admin, run_id, ok ? "info" : "error", ok ? "sms.send_attempt" : "sms.send_failed", {
-        phone: rec.phone_normalized, http_status: httpStatus, latency_ms: latency,
+        phone: rec.phone_normalized,
+        http_status: httpStatus,
+        latency_ms: latency,
+        api_url: req.url,
+        method: req.method,
+        auth_header_name: headerName,
+        auth_value_redacted: "[REDACTED]",
+        request_payload: bodyForLog,
+        request_headers: safeHeaders,
         error: ok ? null : (errMsg ?? `HTTP ${httpStatus}`),
       });
     }
