@@ -123,18 +123,20 @@ function NewTestPage() {
     : recipients.filter((r) => r.valid && r.whitelisted).length;
   const estimatedUnits = segInfo.segments * eligibleCount;
 
-  // Sender validation
+  // Sender ID validation (official iMissive contract: senderId)
   const senderError = useMemo(() => {
-    if (senderKey === "none") return null;
-    if (!senderId.trim()) return "Sender ID is required when a sender field is selected";
-    if (senderKey === "custom") {
-      if (!customKey.trim()) return "Custom sender field key is required";
-      if (["message", "to"].includes(customKey)) return "Custom key cannot be 'message' or 'to'";
-      if (!/^[A-Za-z][A-Za-z0-9_-]{0,39}$/.test(customKey))
-        return "Custom key must match ^[A-Za-z][A-Za-z0-9_-]{0,39}$";
-    }
+    const trimmed = senderId.trim();
+    if (mode === "real_send" && !trimmed) return "Sender ID is required for Real Send";
+    if (trimmed && !/^[A-Za-z0-9 _-]{1,40}$/.test(trimmed)) return "Sender ID contains invalid characters";
     return null;
-  }, [senderKey, senderId, customKey]);
+  }, [senderId, mode]);
+
+  const senderNotApprovedWarning = useMemo(() => {
+    const trimmed = senderId.trim();
+    if (!trimmed) return null;
+    if (allowedSenders.size === 0) return null;
+    return allowedSenders.has(trimmed) ? null : `"${trimmed}" is not in Allowed Sender IDs`;
+  }, [senderId, allowedSenders]);
 
   const canCreate =
     !creating && !!name.trim() && !!message && eligibleCount > 0 && !senderError &&
