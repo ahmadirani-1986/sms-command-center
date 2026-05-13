@@ -318,7 +318,7 @@ function TestDialog({ tpl, onClose }: { tpl: Template; onClose: () => void }) {
         template_id: tpl.id,
         to: phone,
         message,
-        sender: sender || undefined,
+        senderId: sender || undefined,
         confirmation_text: confirmText,
         manual_token: isManual ? manualToken : undefined,
       });
