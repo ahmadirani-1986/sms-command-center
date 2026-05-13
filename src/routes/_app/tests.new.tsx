@@ -497,10 +497,10 @@ function RecipientsPreview({ recipients, mode }: { recipients: Recipient[]; mode
 }
 
 function RealSendConfirmDialog({
-  open, runId, profile, message, senderKey, senderId, customKey, recipients, onClose, onSent, isAdmin,
+  open, runId, profile, message, senderId, recipients, onClose, onSent, isAdmin,
 }: {
   open: boolean; runId: string | null; profile: Profile | null;
-  message: string; senderKey: SenderKey; senderId: string; customKey: string;
+  message: string; senderId: string;
   recipients: Recipient[]; onClose: () => void; onSent: (runId: string) => void; isAdmin: boolean;
 }) {
   const [confirmText, setConfirmText] = useState("");
@@ -527,12 +527,10 @@ function RealSendConfirmDialog({
     (profile.send_sms_path.startsWith("/") ? profile.send_sms_path : `/${profile.send_sms_path}`);
 
   const previewPayloads = recipients.slice(0, 3).map((r) => {
-    const p: Record<string, unknown> = { message, to: r.normalized };
-    const key =
-      senderKey === "none" ? null
-        : senderKey === "custom" ? customKey
-        : senderKey;
-    if (key && senderId) p[key] = senderId;
+    const p: Record<string, unknown> = {};
+    if (senderId) p.senderId = senderId;
+    p.message = message;
+    p.to = r.normalized;
     return p;
   });
 
