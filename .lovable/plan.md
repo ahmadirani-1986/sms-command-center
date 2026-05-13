@@ -1,43 +1,77 @@
-# iMissive SMS API Testing Console — Build Plan
+## External Load Runner Architecture
 
-This is a large internal tool. To deliver it reliably, I'll break it into phases. Each phase ends in a working, testable state. You can review and request changes between phases.
+Add a new architecture for high-volume stress testing (19k+ recipients) where the Lovable dashboard becomes the control panel and an external Node.js runner does the actual sending. Edge Functions only manage job records.
 
-## Phase 1 — Foundation (this turn)
-- Enable Lovable Cloud (Supabase backend).
-- Create the design system: clean enterprise dashboard look (neutral slate palette, Inter, compact tables, status badges).
-- App shell: sidebar nav, header with user menu, route scaffolding for all 12 pages (placeholders for later phases).
-- Database schema for ALL tables listed (user_roles, invited_users, sms_api_profiles, sms_test_runs, sms_test_recipients, sms_test_results, sms_test_logs, sms_test_allowed_numbers, sms_allowed_sender_ids, sms_sender_experiments, sms_sender_experiment_attempts, audit_logs).
-- RLS policies + `has_role()` security definer function + app_role enum (admin/operator/viewer).
-- Trigger: first signed-up user → admin; subsequent signups blocked unless email is in `invited_users`.
-- Auth pages (Login + first-time Signup) with Supabase email/password.
+### 1. Database (migration)
 
-## Phase 2 — API Profiles + Edge Functions core
-- API Profiles CRUD page (admin) with all fields, defaults pre-filled, secret-name-only (token never in DB/UI).
-- Edge function `test-api-profile` (calls Credits API of selected profile, returns credits/wallet/tenant/user/latency).
-- Allowed Numbers + Allowed Sender IDs pages (admin).
+New tables:
+- `load_runner_jobs` — job definition + status + metrics + safety fields
+  - `id, name, status (draft|queued|running|pausing|paused|completed|failed|stopped), mode (dry_run|real), api_mode (profile|raw_template), api_profile_id, raw_template_id, sender_id, message_body, requests_per_sec, concurrency, batch_size, max_recipients, ramp_up_seconds, stop_on_error_rate_pct, total_recipients, submitted_count, success_count, failed_count, pending_count, actual_rps, avg_latency_ms, p95_latency_ms, p99_latency_ms, http_status_histogram jsonb, api_status_histogram jsonb, dlr_status_histogram jsonb, started_at, completed_at, claimed_by_runner, claimed_at, kill_switch, pause_flag, large_send_confirmed, created_by, created_at, updated_at`
+- `load_runner_job_batches` — recipients chunked (e.g. 500/batch); `id, job_id, batch_index, recipients jsonb, status (pending|in_progress|done|failed), assigned_runner, started_at, completed_at`
+- `load_runner_job_results` — per-recipient result; `id, job_id, batch_id, phone_normalized, phone_original, status, http_status, api_status, sms_message_id, latency_ms, request_payload (no token), response_payload, error, created_at`
+- `load_runner_heartbeats` — `id, runner_id, job_id, last_seen_at, in_flight, processed_count, current_rps, notes`
 
-## Phase 3 — Test runs (Dry Run + Real Send)
-- New Test page with phone normalization, CSV upload, segment counter, sender field dropdown, load profile inputs.
-- Confirmation modal with exact payload preview + `CONFIRM SEND <N>` validation.
-- Edge functions: `create-test-run`, `start-sms-test-run`, `process-sms-batch`, `stop-sms-test-run`.
-- Server-side enforcement of whitelist, 50-cap, credit pre-check, kill-switch, no-retry-on-400.
-- Test Runs list + Test Run Details (Overview/Recipients/Logs/DLR tabs).
+Enums + RLS: admins manage all; operators can create/update; viewers read. Service role bypasses RLS for the runner.
 
-## Phase 4 — DLR + Sender Experiments + Audit
-- DLR Checker page + `check-dlr-status` edge function.
-- Sender Field Experiments page + `run-sender-experiment` edge function.
-- `get-test-run-metrics` edge function (latency percentiles, error histogram).
-- Audit Log page + audit triggers on admin actions and real sends.
-- Admin Users page (invite, role change).
-- CSV exports.
+### 2. Control Edge Functions (small, no bulk send)
 
-## Technical notes
-- All edge functions resolve token via `Deno.env.get(profile.credential_secret_name)`. Token names are stored per profile; you'll add the actual secret values via the Lovable Cloud secrets UI when prompted.
-- Phone normalization: strip `+`, spaces, dashes, brackets; convert leading `00` → international digits.
-- All outbound payloads logged with auth header value redacted.
-- Supabase migrations and edge function deploys happen automatically on each phase via Lovable Cloud.
+- `create-load-runner-job` — validates input, normalizes recipients, splits into `load_runner_job_batches`, sets status `queued`, enforces safety (50/1000 confirmation tokens).
+- `pause-load-runner-job` — sets `pause_flag=true`, status `pausing`.
+- `resume-load-runner-job` — clears pause flag, status `queued`/`running`.
+- `stop-load-runner-job` — sets `kill_switch=true`, status `stopped`.
+- `get-load-runner-job-status` — returns job + latest heartbeats + metrics snapshot.
 
-## What I need from you to start
-Confirm Phase 1 and I'll proceed. After Phase 1 you'll have: working auth, all DB tables with RLS, full nav, and placeholder pages — ready for me to fill in feature by feature.
+These functions must never iterate over all recipients to send.
 
-If you'd rather I attempt the entire build in one pass, say so — but it will be much harder to review and any single failure cascades. Phased is strongly recommended for a tool this size.
+### 3. New page: `/load-runner`
+
+- List of jobs with status badges, runner heartbeat freshness indicator, metrics columns.
+- "New Load Job" form with all fields (job name, API profile or raw template selector, sender ID with allowed-list warning, message + segment counter, recipients CSV upload, RPS, concurrency, batch size, max recipients, ramp-up, stop condition, dry/real, estimated credits).
+- Safety modal:
+  - Real Send > 50 → first confirmation `CONFIRM SEND <N>`.
+  - Real Send ≥ 1000 → second confirmation `CONFIRM LARGE REAL SEND <N>` + red warning banner ("This may consume live SMS credits and send real messages.").
+- Job detail view: live metrics (total/submitted/success/failed/pending, actual RPS, avg/P95/P99 latency, HTTP/API/DLR histograms), batches table, control buttons (pause/resume/stop), heartbeat timestamp.
+- Add to sidebar nav (admin only).
+
+### 4. External Node.js runner — `scripts/load-runner/`
+
+Files:
+- `package.json` — `@supabase/supabase-js`, `dotenv`, `p-limit`, `commander`.
+- `index.ts` — main loop:
+  1. Read env (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `IMISSIVE_API_TOKEN`, `RUNNER_ID`, `MAX_CONCURRENCY`, `DEFAULT_RPS`).
+  2. Poll for `queued` jobs; atomically claim by setting `claimed_by_runner` + status `running` via conditional update.
+  3. Stream batches; respect ramp-up, RPS token bucket, concurrency via `p-limit`.
+  4. For each recipient: render request from raw template or profile, send via `fetch`, record result row, never log token (redact `auth_value_redacted: "[REDACTED]"`).
+  5. Aggregate metrics every N seconds → update job row (counts, RPS, latencies via reservoir sample, histograms).
+  6. Check `pause_flag` / `kill_switch` between batches.
+  7. Write heartbeat every 3s.
+  8. On finish: status `completed` (or `failed`/`stopped`).
+- `lib/curl.ts` — copy of cURL parser/renderer (shared with edge `_shared/curl.ts`).
+- `lib/metrics.ts` — latency reservoir + percentiles.
+- `lib/rate.ts` — token-bucket RPS limiter.
+- `dry-run.ts` — same flow but doesn't call API; logs intended request.
+- `.env.example`.
+- `README.md` — local dashboard run, local runner run, Alibaba ECS deploy (PM2 / systemd unit example), how to start/stop a job, safety warnings.
+
+### 5. Safety + limits doc
+
+Add `docs/load-testing.md`:
+- Dashboard send: ≤ 50.
+- Edge Function direct send (existing flow): ≤ 50.
+- External runner small: 100–1,000.
+- External runner controlled load: 1,000–20,000.
+- Above 20k requires planned approval.
+- Estimated credit calc: `segments(message) * total_recipients`; show before start.
+
+### 6. Keep existing controlled send
+
+`tests/new` and the existing `start-sms-test-run` / `process-sms-batch` Edge Functions stay unchanged for smoke testing ≤ 50.
+
+### Out of scope this phase
+
+- Auto-scaling multiple runners (single-runner claim is supported but tested for one).
+- DLR polling for runner-sent messages (can reuse existing `check-dlr-status` since results store `sms_message_id`).
+
+### Deployment
+
+After approval: run migration, deploy 5 control Edge Functions, commit dashboard page + runner scripts + README to GitHub.
