@@ -74,7 +74,7 @@ function NewTestPage() {
 
   useEffect(() => {
     (async () => {
-      const [{ data: p }, { data: t }, { data: a }] = await Promise.all([
+      const [{ data: p }, { data: t }, { data: a }, { data: s }] = await Promise.all([
         supabase.from("sms_api_profiles")
           .select("id,name,base_url,send_sms_path,auth_header_name,credential_mode,credential_secret_name,is_active")
           .eq("is_active", true).order("name"),
@@ -82,10 +82,16 @@ function NewTestPage() {
           .select("id,name,raw_curl,base_url,credential_mode,credential_secret_name,is_active")
           .eq("is_active", true).order("name"),
         supabase.from("sms_test_allowed_numbers").select("phone_normalized").eq("is_active", true),
+        supabase.from("sms_allowed_sender_ids").select("sender_id,status"),
       ]);
       setProfiles((p ?? []) as Profile[]);
       setTemplates((t ?? []) as RawTemplate[]);
       setAllowed(new Set((a ?? []).map((x: { phone_normalized: string }) => x.phone_normalized)));
+      setAllowedSenders(new Set(
+        (s ?? [])
+          .filter((x: { status: string }) => x.status === "active")
+          .map((x: { sender_id: string }) => x.sender_id)
+      ));
     })();
   }, []);
 
