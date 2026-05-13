@@ -1,0 +1,16 @@
+{
+  "name": "imissive-load-runner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "External Node.js load runner for the iMissive SMS Testing Console. Polls Supabase for queued load_runner_jobs and executes them outside Edge Functions.",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "dotenv": "^16.4.5",
+    "p-limit": "^5.0.0"
+  }
+}
