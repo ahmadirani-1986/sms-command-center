@@ -130,7 +130,14 @@ function SenderExperimentsPage() {
 
   return (
     <>
-      <PageHeader title="Sender Field Experiments" description="Discover which sender field key the SMS API actually honors." />
+      <PageHeader title="Sender Field Experiments" description="Legacy diagnostics only. Official iMissive API sender field is senderId." />
+      <Alert className="mb-4 border-warning/40 bg-warning/5">
+        <ShieldAlert className="h-4 w-4 text-warning" />
+        <AlertTitle className="text-warning">Legacy diagnostics only</AlertTitle>
+        <AlertDescription className="text-xs">
+          Official iMissive API sender field is <code className="font-mono">senderId</code>. This page is kept for diagnosing alternative field keys against other vendors and should not be used for production sends.
+        </AlertDescription>
+      </Alert>
 
       <div className="rounded-lg border bg-card p-4 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
