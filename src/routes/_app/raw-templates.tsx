@@ -351,8 +351,8 @@ function TestDialog({ tpl, onClose }: { tpl: Template; onClose: () => void }) {
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+966503333588" className="font-mono" />
             </div>
             <div>
-              <Label className="text-xs">Sender (optional, only if {"{sender}"} is in template)</Label>
-              <Input value={sender} onChange={(e) => setSender(e.target.value)} placeholder="numoplat" className="font-mono" />
+              <Label className="text-xs">Sender ID (maps to {"{senderId}"} in template)</Label>
+              <Input value={sender} onChange={(e) => setSender(e.target.value)} placeholder="iMissive" className="font-mono" />
             </div>
           </div>
           <div>
