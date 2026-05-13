@@ -16,6 +16,7 @@ import {
   LogOut,
   ShieldAlert,
   Terminal,
+  Gauge,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
