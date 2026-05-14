@@ -37,7 +37,18 @@ interface Result {
   latency_ms: number | null; last_error: string | null;
   request_payload: any; response_payload: any; created_at: string; dlr_checked_at: string | null;
 }
-interface LogRow {
+
+function displayError(r: Result): string {
+  if (r.status !== "failed" && r.status !== "error") return "";
+  const rp: any = r.response_payload || {};
+  const apiMsg = rp?.message
+    ?? rp?.error
+    ?? rp?.data?.[0]?.message
+    ?? rp?.data?.[0]?.error
+    ?? (typeof rp?.raw === "string" ? rp.raw.slice(0, 240) : null);
+  if (apiMsg) return r.http_status ? `HTTP ${r.http_status}: ${apiMsg}` : String(apiMsg);
+  return r.last_error ?? (r.http_status ? `HTTP ${r.http_status}` : "Failed");
+}
   id: string; created_at: string; level: string; event: string; payload: any;
 }
 interface Metrics {
