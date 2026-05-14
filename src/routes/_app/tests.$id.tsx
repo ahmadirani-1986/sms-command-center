@@ -49,6 +49,7 @@ function displayError(r: Result): string {
   if (apiMsg) return r.http_status ? `HTTP ${r.http_status}: ${apiMsg}` : String(apiMsg);
   return r.last_error ?? (r.http_status ? `HTTP ${r.http_status}` : "Failed");
 }
+interface LogRow {
   id: string; created_at: string; level: string; event: string; payload: any;
 }
 interface Metrics {
