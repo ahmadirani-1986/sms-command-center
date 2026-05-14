@@ -254,7 +254,9 @@ function TestRunDetailsPage() {
                       <TableCell className="text-xs">{r.current_status ?? "—"}</TableCell>
                       <TableCell className="text-xs">{r.dlr_code ?? "—"}</TableCell>
                       <TableCell className="text-right text-xs tabular-nums">{r.latency_ms ?? "—"}</TableCell>
-                      <TableCell className="text-xs text-destructive max-w-[200px] truncate">{r.last_error ?? ""}</TableCell>
+                      <TableCell className="text-xs text-destructive max-w-[280px]" title={displayError(r)}>
+                        <div className="truncate">{displayError(r)}</div>
+                      </TableCell>
                     </TableRow>
                     {expanded === r.id && (
                       <TableRow key={r.id + "-x"} className="bg-muted/20">
