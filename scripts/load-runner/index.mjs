@@ -353,13 +353,30 @@ async function claimQueuedJob() {
   return claimed;
 }
 
+// Global idle heartbeat — always emits presence, even with no claimed job,
+// so the dashboard's "Runner Connected" box can detect the runner.
+let CURRENT_JOB_ID = null;
+setInterval(async () => {
+  try {
+    await sb.from('load_runner_heartbeats').insert({
+      runner_id: RUNNER_ID,
+      job_id: CURRENT_JOB_ID,
+      in_flight: 0,
+      processed_count: 0,
+      current_rps: 0,
+      notes: CURRENT_JOB_ID ? 'busy' : 'idle',
+    });
+  } catch { /* ignore */ }
+}, Number(HEARTBEAT_INTERVAL_MS));
+
 async function main() {
   log('runner started', { RUNNER_ID, MAX_CONCURRENCY, DEFAULT_RPS });
   while (true) {
     try {
       const job = await claimQueuedJob();
       if (job) {
-        await processJob(job);
+        CURRENT_JOB_ID = job.id;
+        try { await processJob(job); } finally { CURRENT_JOB_ID = null; }
       } else {
         await new Promise(r => setTimeout(r, Number(POLL_INTERVAL_MS)));
       }
