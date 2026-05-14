@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   Terminal,
   Gauge,
+  Server,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
