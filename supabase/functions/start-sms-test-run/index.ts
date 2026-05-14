@@ -264,7 +264,13 @@ Deno.serve(async (req) => {
         latency_ms: latency,
         request_payload: { ...req.payloadForLog, headers: safeHeaders, method: req.method },
         response_payload: parsed ?? { raw: redact(responseText.slice(0, 4000), token) },
-        last_error: ok ? null : (errMsg ?? `HTTP ${httpStatus}`),
+        last_error: ok
+          ? null
+          : (errMsg
+              ?? (parsed?.message ? `HTTP ${httpStatus}: ${parsed.message}` : null)
+              ?? (parsed?.error ? `HTTP ${httpStatus}: ${parsed.error}` : null)
+              ?? (parsed?.data?.[0]?.message ? `HTTP ${httpStatus}: ${parsed.data[0].message}` : null)
+              ?? `HTTP ${httpStatus}`),
       });
       let bodyForLog: any = req.body;
       try { if (req.body) bodyForLog = JSON.parse(req.body); } catch { /* keep raw */ }
