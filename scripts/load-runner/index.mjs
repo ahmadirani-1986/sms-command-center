@@ -32,6 +32,20 @@ const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 
 const log = (msg, extra = {}) => console.log(JSON.stringify({ ts: new Date().toISOString(), runner: RUNNER_ID, msg, ...extra }));
 
+async function writeHeartbeat({ jobId = null, inFlight = 0, processedCount = 0, currentRps = 0, notes = null, errorLabel = 'heartbeat failed' } = {}) {
+  const { error } = await sb.from('load_runner_heartbeats').insert({
+    runner_id: RUNNER_ID,
+    job_id: jobId,
+    last_seen_at: new Date().toISOString(),
+    in_flight: inFlight,
+    processed_count: processedCount,
+    current_rps: currentRps,
+    notes,
+  });
+
+  if (error) log(errorLabel, { error: error.message || error });
+}
+
 // -------- helpers --------
 function normalizePhone(input) {
   if (!input) return '';
@@ -210,11 +224,8 @@ async function processJob(job) {
     const elapsed = (Date.now() - startedAt) / 1000;
     const rpsActual = elapsed > 0 ? processed / elapsed : 0;
     try {
-      await sb.from('load_runner_heartbeats').insert({
-        runner_id: RUNNER_ID, job_id: job.id, in_flight: inFlight,
-        processed_count: processed, current_rps: rpsActual,
-      });
-    } catch (e) { /* ignore */ }
+      await writeHeartbeat({ jobId: job.id, inFlight, processedCount: processed, currentRps: rpsActual, notes: 'busy', errorLabel: 'job heartbeat failed' });
+    } catch (error) { log('job heartbeat failed', { error: error.message || error }); }
   }, Number(HEARTBEAT_INTERVAL_MS));
 
   // Metrics flush loop
@@ -358,15 +369,15 @@ async function claimQueuedJob() {
 let CURRENT_JOB_ID = null;
 setInterval(async () => {
   try {
-    await sb.from('load_runner_heartbeats').insert({
-      runner_id: RUNNER_ID,
-      job_id: CURRENT_JOB_ID,
-      in_flight: 0,
-      processed_count: 0,
-      current_rps: 0,
+    await writeHeartbeat({
+      jobId: CURRENT_JOB_ID,
+      inFlight: 0,
+      processedCount: 0,
+      currentRps: 0,
       notes: CURRENT_JOB_ID ? 'busy' : 'idle',
+      errorLabel: 'idle heartbeat failed',
     });
-  } catch { /* ignore */ }
+  } catch (error) { log('idle heartbeat failed', { error: error.message || error }); }
 }, Number(HEARTBEAT_INTERVAL_MS));
 
 async function main() {
