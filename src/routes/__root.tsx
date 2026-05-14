@@ -83,6 +83,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "iMissive SMS API Testing Console" },
+      { name: "twitter:description", content: "Internal use only — not for customer access." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/bc1b62a5-6758-4494-862b-060985488281/id-preview-1135857a--70264cee-61dc-42a4-a47b-4c1fdbc0a587.lovable.app-1778779768283.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/bc1b62a5-6758-4494-862b-060985488281/id-preview-1135857a--70264cee-61dc-42a4-a47b-4c1fdbc0a587.lovable.app-1778779768283.png" },
     ],
     links: [
       {
