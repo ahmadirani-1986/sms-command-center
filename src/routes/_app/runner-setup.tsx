@@ -19,8 +19,9 @@ interface Heartbeat {
   job_id: string | null;
   last_seen_at: string;
   in_flight: number;
-  processed_count: number;
+  processed_count?: number;
   current_rps: number;
+  notes?: string | null;
 }
 
 const HEARTBEAT_FRESH_SECONDS = 30;
