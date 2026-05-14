@@ -136,13 +136,15 @@ function LoadRunnerPage() {
         }
       />
 
+      <RunnerStatusBox />
+
       <Alert className="mb-4">
         <Activity className="h-4 w-4" />
         <AlertTitle>External runner required</AlertTitle>
         <AlertDescription>
           Jobs created here are <strong>queued</strong>. An external Node.js runner
           (<code>scripts/load-runner</code>) must be running with the Supabase service role key
-          to claim and execute them. See <code>scripts/load-runner/README.md</code>.
+          to claim and execute them. See <Link to="/runner-setup" className="underline">Runner Setup</Link>.
         </AlertDescription>
       </Alert>
 
