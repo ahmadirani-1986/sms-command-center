@@ -375,7 +375,8 @@ async function main() {
     try {
       const job = await claimQueuedJob();
       if (job) {
-        await processJob(job);
+        CURRENT_JOB_ID = job.id;
+        try { await processJob(job); } finally { CURRENT_JOB_ID = null; }
       } else {
         await new Promise(r => setTimeout(r, Number(POLL_INTERVAL_MS)));
       }
