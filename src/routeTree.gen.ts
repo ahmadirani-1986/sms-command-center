@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSenderExperimentsRouteImport } from './routes/_app/sender-experiments'
+import { Route as AppRunnerSetupRouteImport } from './routes/_app/runner-setup'
 import { Route as AppRawTemplatesRouteImport } from './routes/_app/raw-templates'
 import { Route as AppLoadRunnerRouteImport } from './routes/_app/load-runner'
 import { Route as AppDlrRouteImport } from './routes/_app/dlr'
@@ -42,6 +43,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppSenderExperimentsRoute = AppSenderExperimentsRouteImport.update({
   id: '/sender-experiments',
   path: '/sender-experiments',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRunnerSetupRoute = AppRunnerSetupRouteImport.update({
+  id: '/runner-setup',
+  path: '/runner-setup',
   getParentRoute: () => AppRoute,
 } as any)
 const AppRawTemplatesRoute = AppRawTemplatesRouteImport.update({
@@ -110,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/dlr': typeof AppDlrRoute
   '/load-runner': typeof AppLoadRunnerRoute
   '/raw-templates': typeof AppRawTemplatesRoute
+  '/runner-setup': typeof AppRunnerSetupRoute
   '/sender-experiments': typeof AppSenderExperimentsRoute
   '/admin/users': typeof AppAdminUsersRoute
   '/tests/$id': typeof AppTestsIdRoute
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/dlr': typeof AppDlrRoute
   '/load-runner': typeof AppLoadRunnerRoute
   '/raw-templates': typeof AppRawTemplatesRoute
+  '/runner-setup': typeof AppRunnerSetupRoute
   '/sender-experiments': typeof AppSenderExperimentsRoute
   '/': typeof AppIndexRoute
   '/admin/users': typeof AppAdminUsersRoute
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/_app/dlr': typeof AppDlrRoute
   '/_app/load-runner': typeof AppLoadRunnerRoute
   '/_app/raw-templates': typeof AppRawTemplatesRoute
+  '/_app/runner-setup': typeof AppRunnerSetupRoute
   '/_app/sender-experiments': typeof AppSenderExperimentsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/admin/users': typeof AppAdminUsersRoute
@@ -162,6 +171,7 @@ export interface FileRouteTypes {
     | '/dlr'
     | '/load-runner'
     | '/raw-templates'
+    | '/runner-setup'
     | '/sender-experiments'
     | '/admin/users'
     | '/tests/$id'
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/dlr'
     | '/load-runner'
     | '/raw-templates'
+    | '/runner-setup'
     | '/sender-experiments'
     | '/'
     | '/admin/users'
@@ -194,6 +205,7 @@ export interface FileRouteTypes {
     | '/_app/dlr'
     | '/_app/load-runner'
     | '/_app/raw-templates'
+    | '/_app/runner-setup'
     | '/_app/sender-experiments'
     | '/_app/'
     | '/_app/admin/users'
@@ -235,6 +247,13 @@ declare module '@tanstack/react-router' {
       path: '/sender-experiments'
       fullPath: '/sender-experiments'
       preLoaderRoute: typeof AppSenderExperimentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/runner-setup': {
+      id: '/_app/runner-setup'
+      path: '/runner-setup'
+      fullPath: '/runner-setup'
+      preLoaderRoute: typeof AppRunnerSetupRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/raw-templates': {
@@ -325,6 +344,7 @@ interface AppRouteChildren {
   AppDlrRoute: typeof AppDlrRoute
   AppLoadRunnerRoute: typeof AppLoadRunnerRoute
   AppRawTemplatesRoute: typeof AppRawTemplatesRoute
+  AppRunnerSetupRoute: typeof AppRunnerSetupRoute
   AppSenderExperimentsRoute: typeof AppSenderExperimentsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
@@ -341,6 +361,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDlrRoute: AppDlrRoute,
   AppLoadRunnerRoute: AppLoadRunnerRoute,
   AppRawTemplatesRoute: AppRawTemplatesRoute,
+  AppRunnerSetupRoute: AppRunnerSetupRoute,
   AppSenderExperimentsRoute: AppSenderExperimentsRoute,
   AppIndexRoute: AppIndexRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,
