@@ -26,6 +26,7 @@ import {
 import { invokeFn, formatInvokeError } from "@/lib/invoke-fn";
 import { normalizePhone, isValidNormalizedPhone } from "@/lib/phone";
 import { computeSegments } from "@/lib/sms";
+import { RunnerStatusBox } from "./runner-setup";
 
 export const Route = createFileRoute("/_app/load-runner")({
   component: LoadRunnerPage,
