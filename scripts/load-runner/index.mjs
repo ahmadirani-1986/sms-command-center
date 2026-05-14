@@ -1,18 +1,20 @@
 // External load runner for iMissive SMS Testing Console.
-// Polls Supabase for queued load_runner_jobs, claims one at a time,
-// processes its batches honoring RPS / concurrency / pause / kill flags,
-// records per-recipient results, and aggregates job metrics.
+// Talks to the backend over a secure HTTPS API (no Supabase service role
+// required on this machine). Authenticates with RUNNER_SECRET.
 //
-// Run with: node index.mjs
-// Requires: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, IMISSIVE_API_TOKEN, RUNNER_ID
+// Required env:
+//   API_BASE_URL   - e.g. https://project--<lovable-project-id>.lovable.app
+//   RUNNER_SECRET  - shared secret matching the server's RUNNER_SECRET
+//   RUNNER_ID      - any string identifying this runner
+//   IMISSIVE_API_TOKEN - SMS API token used for real sends
+// Optional: MAX_CONCURRENCY, DEFAULT_RPS, POLL_INTERVAL_MS, HEARTBEAT_INTERVAL_MS
 
 import 'dotenv/config';
-import { createClient } from '@supabase/supabase-js';
 import pLimit from 'p-limit';
 
 const {
-  SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY,
+  API_BASE_URL,
+  RUNNER_SECRET,
   IMISSIVE_API_TOKEN,
   RUNNER_ID = `runner-${Math.random().toString(36).slice(2, 8)}`,
   MAX_CONCURRENCY = '20',
@@ -21,57 +23,66 @@ const {
   HEARTBEAT_INTERVAL_MS = '3000',
 } = process.env;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
+if (!API_BASE_URL || !RUNNER_SECRET) {
+  console.error('API_BASE_URL and RUNNER_SECRET are required');
   process.exit(1);
 }
 
-const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+const ENDPOINT = `${API_BASE_URL.replace(/\/$/, '')}/api/public/runner`;
 
-const log = (msg, extra = {}) => console.log(JSON.stringify({ ts: new Date().toISOString(), runner: RUNNER_ID, msg, ...extra }));
+const log = (msg, extra = {}) =>
+  console.log(JSON.stringify({ ts: new Date().toISOString(), runner: RUNNER_ID, msg, ...extra }));
+
+async function api(action, body = {}) {
+  const res = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${RUNNER_SECRET}`,
+    },
+    body: JSON.stringify({ action, ...body }),
+  });
+  const text = await res.text();
+  let parsed = null;
+  try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { raw: text }; }
+  if (!res.ok) {
+    const err = new Error(`API ${action} failed: ${res.status} ${parsed?.error || text}`);
+    err.status = res.status;
+    throw err;
+  }
+  return parsed;
+}
 
 async function writeHeartbeat({ jobId = null, inFlight = 0, processedCount = 0, currentRps = 0, notes = null, errorLabel = 'heartbeat failed' } = {}) {
-  const { error } = await sb.from('load_runner_heartbeats').insert({
-    runner_id: RUNNER_ID,
-    job_id: jobId,
-    last_seen_at: new Date().toISOString(),
-    in_flight: inFlight,
-    processed_count: processedCount,
-    current_rps: currentRps,
-    notes,
-  });
-
-  if (error) log(errorLabel, { error: error.message || error });
+  try {
+    await api('heartbeat', {
+      runner_id: RUNNER_ID,
+      job_id: jobId,
+      in_flight: inFlight,
+      processed_count: processedCount,
+      current_rps: currentRps,
+      notes,
+    });
+  } catch (error) {
+    log(errorLabel, { error: error.message || String(error) });
+  }
 }
 
 // -------- helpers --------
-function normalizePhone(input) {
-  if (!input) return '';
-  let s = String(input).trim().replace(/[\s\-().\u00a0]/g, '');
-  if (s.startsWith('+')) s = s.slice(1);
-  if (s.startsWith('00')) s = s.slice(2);
-  return s.replace(/\D/g, '');
-}
-
 function resolveToken(credentialMode, secretName) {
   if (credentialMode === 'manual_token' || !secretName) return IMISSIVE_API_TOKEN || '';
   return process.env[secretName] || IMISSIVE_API_TOKEN || '';
 }
 
-// Render a raw cURL template by substituting {senderId}, {message}, {to}, {token}.
 function renderRawTemplate(rawCurl, vars) {
   let out = rawCurl;
   for (const [k, v] of Object.entries(vars)) {
     out = out.split(`{${k}}`).join(v ?? '');
   }
-  // Legacy alias
   if (vars.senderId !== undefined) out = out.split('{sender}').join(vars.senderId);
   return out;
 }
 
-// Very small cURL parser → { url, method, headers, body }
 function parseCurl(curl) {
   const tokens = curl.match(/(?:[^\s'"]+|'[^']*'|"[^"]*")+/g) || [];
   const clean = (t) => t.replace(/^['"]|['"]$/g, '');
@@ -125,7 +136,7 @@ class Reservoir {
 }
 
 // -------- core --------
-async function buildRequest(job, profile, template, recipient) {
+function buildRequest(job, profile, template, recipient) {
   const senderId = job.sender_id || '';
   const message = job.message_body || '';
   const to = recipient.phone_normalized;
@@ -134,25 +145,23 @@ async function buildRequest(job, profile, template, recipient) {
     const token = resolveToken(template.credential_mode, template.credential_secret_name);
     const rendered = renderRawTemplate(template.raw_curl, { senderId, message, to, token });
     const parsed = parseCurl(rendered);
-    return { url: parsed.url, method: parsed.method, headers: parsed.headers, body: parsed.body, token };
+    return { url: parsed.url, method: parsed.method, headers: parsed.headers, body: parsed.body };
   }
-  // profile mode — official iMissive contract
   const token = resolveToken(profile.credential_mode, profile.credential_secret_name);
   const url = `${profile.base_url.replace(/\/$/, '')}${profile.send_sms_path}`;
   const headers = {
-    'accept': '*/*',
+    accept: '*/*',
     'Content-Type': 'application/json',
     [profile.auth_header_name || 'X-API-Key']: token,
   };
   const body = JSON.stringify({ senderId, message, to });
-  return { url, method: profile.send_sms_method || 'POST', headers, body, token };
+  return { url, method: profile.send_sms_method || 'POST', headers, body };
 }
 
 async function performSend(job, profile, template, recipient) {
   const t0 = Date.now();
   try {
-    const req = await buildRequest(job, profile, template, recipient);
-    let payload = req.body;
+    const req = buildRequest(job, profile, template, recipient);
     let parsedPayload = null;
     try { parsedPayload = JSON.parse(req.body); } catch { /* not json */ }
 
@@ -163,7 +172,7 @@ async function performSend(job, profile, template, recipient) {
         http_status: null,
         api_status: 'DRY_RUN',
         sms_message_id: null,
-        request_payload: parsedPayload ?? { raw: payload?.slice?.(0, 500) },
+        request_payload: parsedPayload ?? { raw: req.body?.slice?.(0, 500) },
         response_payload: { dry_run: true },
       };
     }
@@ -179,7 +188,7 @@ async function performSend(job, profile, template, recipient) {
       http_status: resp.status,
       api_status: String(apiStatus),
       sms_message_id: smsId ? String(smsId) : null,
-      request_payload: parsedPayload ?? { raw: payload?.slice?.(0, 500) },
+      request_payload: parsedPayload ?? { raw: req.body?.slice?.(0, 500) },
       response_payload: parsed,
       error: resp.ok ? null : (parsed?.message ?? `HTTP ${resp.status}`),
     };
@@ -188,25 +197,8 @@ async function performSend(job, profile, template, recipient) {
   }
 }
 
-async function refreshJob(jobId) {
-  const { data } = await sb.from('load_runner_jobs').select('*').eq('id', jobId).single();
-  return data;
-}
-
-async function processJob(job) {
+async function processJob(job, profile, template) {
   log('claimed job', { job_id: job.id, name: job.name, mode: job.mode, total: job.total_recipients });
-
-  // Load profile / template
-  let profile = null, template = null;
-  if (job.api_mode === 'profile' && job.api_profile_id) {
-    const { data } = await sb.from('sms_api_profiles').select('*').eq('id', job.api_profile_id).single();
-    profile = data;
-  } else if (job.api_mode === 'raw_template' && job.raw_template_id) {
-    const { data } = await sb.from('sms_raw_templates').select('*').eq('id', job.raw_template_id).single();
-    template = data;
-  }
-
-  await sb.from('load_runner_jobs').update({ status: 'running', started_at: new Date().toISOString() }).eq('id', job.id);
 
   const rps = Math.max(1, Math.min(Number(DEFAULT_RPS), job.requests_per_sec || Number(DEFAULT_RPS)));
   const concurrency = Math.max(1, Math.min(Number(MAX_CONCURRENCY), job.concurrency || Number(MAX_CONCURRENCY)));
@@ -219,60 +211,56 @@ async function processJob(job) {
   let processed = 0;
   const startedAt = Date.now();
 
-  // Heartbeat loop
-  const hbTimer = setInterval(async () => {
+  const hbTimer = setInterval(() => {
     const elapsed = (Date.now() - startedAt) / 1000;
     const rpsActual = elapsed > 0 ? processed / elapsed : 0;
-    try {
-      await writeHeartbeat({ jobId: job.id, inFlight, processedCount: processed, currentRps: rpsActual, notes: 'busy', errorLabel: 'job heartbeat failed' });
-    } catch (error) { log('job heartbeat failed', { error: error.message || error }); }
+    writeHeartbeat({ jobId: job.id, inFlight, processedCount: processed, currentRps: rpsActual, notes: 'busy', errorLabel: 'job heartbeat failed' });
   }, Number(HEARTBEAT_INTERVAL_MS));
 
-  // Metrics flush loop
   const metricsTimer = setInterval(async () => {
     const elapsed = (Date.now() - startedAt) / 1000;
-    await sb.from('load_runner_jobs').update({
-      submitted_count: counters.submitted,
-      success_count: counters.success,
-      failed_count: counters.failed,
-      pending_count: Math.max(0, job.total_recipients - counters.submitted),
-      actual_rps: elapsed > 0 ? counters.submitted / elapsed : 0,
-      avg_latency_ms: reservoir.avg(),
-      p95_latency_ms: reservoir.pct(0.95),
-      p99_latency_ms: reservoir.pct(0.99),
-      http_status_histogram: counters.http,
-      api_status_histogram: counters.api,
-    }).eq('id', job.id);
+    try {
+      await api('update-job', {
+        job_id: job.id,
+        patch: {
+          submitted_count: counters.submitted,
+          success_count: counters.success,
+          failed_count: counters.failed,
+          pending_count: Math.max(0, job.total_recipients - counters.submitted),
+          actual_rps: elapsed > 0 ? counters.submitted / elapsed : 0,
+          avg_latency_ms: reservoir.avg(),
+          p95_latency_ms: reservoir.pct(0.95),
+          p99_latency_ms: reservoir.pct(0.99),
+          http_status_histogram: counters.http,
+          api_status_histogram: counters.api,
+        },
+      });
+    } catch (e) { log('metrics update failed', { error: e.message || String(e) }); }
   }, 2000);
 
-  // Optional ramp-up wait before first batch
   if (job.ramp_up_seconds > 0) {
     log('ramp-up', { seconds: job.ramp_up_seconds });
     await new Promise(r => setTimeout(r, job.ramp_up_seconds * 1000));
   }
 
-  // Stream batches
-  let cursor = -1;
   while (true) {
-    // Check pause / kill
-    const fresh = await refreshJob(job.id);
+    const { job: fresh } = await api('get-job', { job_id: job.id });
     if (!fresh) break;
     if (fresh.kill_switch) { log('kill switch'); break; }
     if (fresh.pause_flag) {
-      await sb.from('load_runner_jobs').update({ status: 'paused' }).eq('id', job.id);
+      await api('update-job', { job_id: job.id, patch: { status: 'paused' } });
       log('paused');
       while (true) {
         await new Promise(r => setTimeout(r, 2000));
-        const f2 = await refreshJob(job.id);
+        const { job: f2 } = await api('get-job', { job_id: job.id });
         if (!f2 || f2.kill_switch) break;
         if (!f2.pause_flag) {
-          await sb.from('load_runner_jobs').update({ status: 'running' }).eq('id', job.id);
+          await api('update-job', { job_id: job.id, patch: { status: 'running' } });
           break;
         }
       }
       continue;
     }
-    // Stop if error rate exceeded
     if (counters.submitted > 20) {
       const rate = (counters.failed / counters.submitted) * 100;
       if (rate > Number(job.stop_on_error_rate_pct ?? 50)) {
@@ -281,16 +269,8 @@ async function processJob(job) {
       }
     }
 
-    const { data: batches } = await sb.from('load_runner_job_batches')
-      .select('*').eq('job_id', job.id).eq('status', 'pending')
-      .order('batch_index').limit(1);
-    if (!batches || batches.length === 0) break;
-    const batch = batches[0];
-    cursor = batch.batch_index;
-
-    await sb.from('load_runner_job_batches')
-      .update({ status: 'in_progress', assigned_runner: RUNNER_ID, started_at: new Date().toISOString() })
-      .eq('id', batch.id);
+    const { batch } = await api('next-batch', { job_id: job.id, runner_id: RUNNER_ID });
+    if (!batch) break;
 
     const recipients = Array.isArray(batch.recipients) ? batch.recipients : [];
     const tasks = recipients.map((rcpt) => limit(async () => {
@@ -306,88 +286,75 @@ async function processJob(job) {
       if (r.latency_ms) reservoir.add(r.latency_ms);
 
       try {
-        await sb.from('load_runner_job_results').insert({
-          job_id: job.id, batch_id: batch.id,
-          phone_original: rcpt.phone_original, phone_normalized: rcpt.phone_normalized,
-          status: r.ok ? 'success' : 'failed',
-          http_status: r.http_status,
-          api_status: r.api_status,
-          sms_message_id: r.sms_message_id,
-          latency_ms: r.latency_ms,
-          request_payload: r.request_payload,
-          response_payload: r.response_payload,
-          error: r.error ?? null,
+        await api('write-result', {
+          row: {
+            job_id: job.id,
+            batch_id: batch.id,
+            phone_original: rcpt.phone_original,
+            phone_normalized: rcpt.phone_normalized,
+            status: r.ok ? 'success' : 'failed',
+            http_status: r.http_status,
+            api_status: r.api_status,
+            sms_message_id: r.sms_message_id,
+            latency_ms: r.latency_ms,
+            request_payload: r.request_payload,
+            response_payload: r.response_payload,
+            error: r.error ?? null,
+          },
         });
-      } catch (e) { /* ignore single insert errors */ }
+      } catch (e) { log('write-result failed', { error: e.message || String(e) }); }
     }));
     await Promise.all(tasks);
 
-    await sb.from('load_runner_job_batches')
-      .update({ status: 'done', completed_at: new Date().toISOString() })
-      .eq('id', batch.id);
-    log('batch done', { batch_index: cursor, processed });
+    await api('complete-batch', { batch_id: batch.id });
+    log('batch done', { batch_index: batch.batch_index, processed });
   }
 
   clearInterval(hbTimer);
   clearInterval(metricsTimer);
 
-  const finalFresh = await refreshJob(job.id);
+  const { job: finalFresh } = await api('get-job', { job_id: job.id });
   const finalStatus = finalFresh?.kill_switch ? 'stopped' : 'completed';
   const elapsed = (Date.now() - startedAt) / 1000;
-  await sb.from('load_runner_jobs').update({
-    status: finalStatus,
-    completed_at: new Date().toISOString(),
-    submitted_count: counters.submitted,
-    success_count: counters.success,
-    failed_count: counters.failed,
-    pending_count: Math.max(0, job.total_recipients - counters.submitted),
-    actual_rps: elapsed > 0 ? counters.submitted / elapsed : 0,
-    avg_latency_ms: reservoir.avg(),
-    p95_latency_ms: reservoir.pct(0.95),
-    p99_latency_ms: reservoir.pct(0.99),
-    http_status_histogram: counters.http,
-    api_status_histogram: counters.api,
-  }).eq('id', job.id);
+  await api('finalize-job', {
+    job_id: job.id,
+    patch: {
+      status: finalStatus,
+      submitted_count: counters.submitted,
+      success_count: counters.success,
+      failed_count: counters.failed,
+      pending_count: Math.max(0, job.total_recipients - counters.submitted),
+      actual_rps: elapsed > 0 ? counters.submitted / elapsed : 0,
+      avg_latency_ms: reservoir.avg(),
+      p95_latency_ms: reservoir.pct(0.95),
+      p99_latency_ms: reservoir.pct(0.99),
+      http_status_histogram: counters.http,
+      api_status_histogram: counters.api,
+    },
+  });
   log('job done', { job_id: job.id, status: finalStatus, ...counters });
 }
 
-async function claimQueuedJob() {
-  const { data: candidate } = await sb.from('load_runner_jobs')
-    .select('*').eq('status', 'queued').is('claimed_by_runner', null)
-    .order('created_at').limit(1).maybeSingle();
-  if (!candidate) return null;
-  const { data: claimed, error } = await sb.from('load_runner_jobs')
-    .update({ claimed_by_runner: RUNNER_ID, claimed_at: new Date().toISOString() })
-    .eq('id', candidate.id).is('claimed_by_runner', null)
-    .select().maybeSingle();
-  if (error || !claimed) return null;
-  return claimed;
-}
-
-// Global idle heartbeat — always emits presence, even with no claimed job,
-// so the dashboard's "Runner Connected" box can detect the runner.
 let CURRENT_JOB_ID = null;
-setInterval(async () => {
-  try {
-    await writeHeartbeat({
-      jobId: CURRENT_JOB_ID,
-      inFlight: 0,
-      processedCount: 0,
-      currentRps: 0,
-      notes: CURRENT_JOB_ID ? 'busy' : 'idle',
-      errorLabel: 'idle heartbeat failed',
-    });
-  } catch (error) { log('idle heartbeat failed', { error: error.message || error }); }
+setInterval(() => {
+  writeHeartbeat({
+    jobId: CURRENT_JOB_ID,
+    inFlight: 0,
+    processedCount: 0,
+    currentRps: 0,
+    notes: CURRENT_JOB_ID ? 'busy' : 'idle',
+    errorLabel: 'idle heartbeat failed',
+  });
 }, Number(HEARTBEAT_INTERVAL_MS));
 
 async function main() {
-  log('runner started', { RUNNER_ID, MAX_CONCURRENCY, DEFAULT_RPS });
+  log('runner started', { RUNNER_ID, API_BASE_URL, MAX_CONCURRENCY, DEFAULT_RPS });
   while (true) {
     try {
-      const job = await claimQueuedJob();
+      const { job, profile, template } = await api('claim-job', { runner_id: RUNNER_ID });
       if (job) {
         CURRENT_JOB_ID = job.id;
-        try { await processJob(job); } finally { CURRENT_JOB_ID = null; }
+        try { await processJob(job, profile, template); } finally { CURRENT_JOB_ID = null; }
       } else {
         await new Promise(r => setTimeout(r, Number(POLL_INTERVAL_MS)));
       }
