@@ -19,11 +19,12 @@ interface Heartbeat {
   job_id: string | null;
   last_seen_at: string;
   in_flight: number;
-  processed_count: number;
+  processed_count?: number;
   current_rps: number;
+  notes?: string | null;
 }
 
-const HEARTBEAT_FRESH_SECONDS = 15;
+const HEARTBEAT_FRESH_SECONDS = 30;
 
 function useRunnerStatus() {
   const [hb, setHb] = useState<Heartbeat | null>(null);
@@ -31,12 +32,25 @@ function useRunnerStatus() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("load_runner_heartbeats")
-      .select("*")
+      .select("runner_id,job_id,last_seen_at,in_flight,current_rps,notes,id")
       .order("last_seen_at", { ascending: false })
       .limit(1);
-    setHb(((data ?? [])[0] as Heartbeat) ?? null);
+    const latest = ((data ?? [])[0] as Heartbeat) ?? null;
+    const ageSec = latest
+      ? (Date.now() - new Date(latest.last_seen_at).getTime()) / 1000
+      : Infinity;
+    // eslint-disable-next-line no-console
+    console.log("[RunnerStatus]", {
+      supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+      rowsReturned: data?.length ?? 0,
+      error: error?.message,
+      latest,
+      ageSec,
+      connected: latest !== null && ageSec < HEARTBEAT_FRESH_SECONDS,
+    });
+    setHb(latest);
     setLoading(false);
   };
 
