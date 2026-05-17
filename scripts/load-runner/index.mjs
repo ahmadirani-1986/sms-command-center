@@ -180,6 +180,15 @@ async function performSend(job, profile, template, recipient) {
     const resp = await fetch(req.url, { method: req.method, headers: req.headers, body: req.body });
     const txt = await resp.text();
     let parsed = null; try { parsed = JSON.parse(txt); } catch { parsed = { raw: txt.slice(0, 500) }; }
+    if (!resp.ok) {
+      console.log("=== SEND FAILED ===");
+      console.log("HTTP:", resp.status);
+      console.log("Recipient:", recipient.phone_normalized);
+      console.log("URL:", req.url);
+      console.log("Request:", req.body?.slice?.(0, 500));
+      console.log("Response:", parsed);
+      console.log("Message:", parsed?.message);
+    }
     const apiStatus = parsed?.status ?? (resp.ok ? 'success' : 'error');
     const smsId = parsed?.data?.[0]?.sms_message_id ?? parsed?.data?.sms_message_id ?? parsed?.sms_message_id ?? null;
     return {
