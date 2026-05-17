@@ -158,6 +158,13 @@ function buildRequest(job, profile, template, recipient) {
   return { url, method: profile.send_sms_method || 'POST', headers, body };
 }
 
+// Retry transient upstream failures (HTTP 5xx) up to MAX_RETRIES extra attempts
+// with short jittered backoff. Non-5xx responses (including 4xx) are returned
+// as-is — those are real validation/business errors, not transient.
+const MAX_RETRIES = 2;
+const RETRY_BASE_MS = 250;
+const RETRY_JITTER_MS = 250;
+
 async function performSend(job, profile, template, recipient) {
   const t0 = Date.now();
   try {
@@ -172,16 +179,41 @@ async function performSend(job, profile, template, recipient) {
         http_status: null,
         api_status: 'DRY_RUN',
         sms_message_id: null,
+        attempts: 1,
         request_payload: parsedPayload ?? { raw: req.body?.slice?.(0, 500) },
         response_payload: { dry_run: true },
       };
     }
 
-    const resp = await fetch(req.url, { method: req.method, headers: req.headers, body: req.body });
-    const txt = await resp.text();
-    let parsed = null; try { parsed = JSON.parse(txt); } catch { parsed = { raw: txt.slice(0, 500) }; }
+    let resp, txt, parsed = null;
+    let attempts = 0;
+    const attemptHistory = [];
+    while (attempts <= MAX_RETRIES) {
+      attempts++;
+      try {
+        resp = await fetch(req.url, { method: req.method, headers: req.headers, body: req.body });
+        txt = await resp.text();
+        try { parsed = JSON.parse(txt); } catch { parsed = { raw: txt.slice(0, 500) }; }
+      } catch (netErr) {
+        resp = { ok: false, status: 0 };
+        parsed = { error: String(netErr?.message ?? netErr) };
+      }
+      const isTransient = !resp.ok && (resp.status === 0 || resp.status >= 500);
+      if (!isTransient) break;
+      attemptHistory.push({ attempt: attempts, http_status: resp.status, message: parsed?.message ?? parsed?.error ?? null });
+      console.log("=== SEND RETRY ===");
+      console.log("Attempt:", attempts, "of", MAX_RETRIES + 1);
+      console.log("HTTP:", resp.status);
+      console.log("Recipient:", recipient.phone_normalized);
+      console.log("Response:", parsed);
+      if (attempts > MAX_RETRIES) break;
+      const delay = RETRY_BASE_MS * attempts + Math.floor(Math.random() * RETRY_JITTER_MS);
+      await new Promise(r => setTimeout(r, delay));
+    }
+
     if (!resp.ok) {
-      console.log("=== SEND FAILED ===");
+      console.log("=== SEND FAILED (final) ===");
+      console.log("Attempts:", attempts);
       console.log("HTTP:", resp.status);
       console.log("Recipient:", recipient.phone_normalized);
       console.log("URL:", req.url);
@@ -191,18 +223,21 @@ async function performSend(job, profile, template, recipient) {
     }
     const apiStatus = parsed?.status ?? (resp.ok ? 'success' : 'error');
     const smsId = parsed?.data?.[0]?.sms_message_id ?? parsed?.data?.sms_message_id ?? parsed?.sms_message_id ?? null;
+    const errMsg = resp.ok ? null : (parsed?.message ?? parsed?.error ?? `HTTP ${resp.status}`);
+    const responsePayload = parsed ? { ...parsed, _attempts: attempts, ...(attemptHistory.length ? { _retry_history: attemptHistory } : {}) } : { _attempts: attempts };
     return {
       ok: resp.ok,
       latency_ms: Date.now() - t0,
-      http_status: resp.status,
+      http_status: resp.status || null,
       api_status: String(apiStatus),
       sms_message_id: smsId ? String(smsId) : null,
+      attempts,
       request_payload: parsedPayload ?? { raw: req.body?.slice?.(0, 500) },
-      response_payload: parsed,
-      error: resp.ok ? null : (parsed?.message ?? `HTTP ${resp.status}`),
+      response_payload: responsePayload,
+      error: resp.ok ? null : (attempts > 1 ? `${errMsg} (after ${attempts} attempts)` : errMsg),
     };
   } catch (e) {
-    return { ok: false, latency_ms: Date.now() - t0, http_status: null, api_status: 'ERROR', error: String(e?.message ?? e), request_payload: null, response_payload: null };
+    return { ok: false, latency_ms: Date.now() - t0, http_status: null, api_status: 'ERROR', attempts: 1, error: String(e?.message ?? e), request_payload: null, response_payload: null };
   }
 }
 
