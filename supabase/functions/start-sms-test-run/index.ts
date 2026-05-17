@@ -224,21 +224,44 @@ Deno.serve(async (req) => {
       const safeHeaders = sanitizeHeadersForLog(req.headers, headerName);
       const t0 = Date.now();
       let httpStatus = 0, responseText = "", parsed: any = null, errMsg: string | null = null;
-      try {
-        const ctrl = new AbortController();
-        const to = setTimeout(() => ctrl.abort(), Math.max(5, Math.min(run.timeout_seconds || 30, 60)) * 1000);
-        const resp = await fetch(req.url, {
-          method: req.method,
-          headers: req.headers,
-          body: req.body ?? undefined,
-          signal: ctrl.signal,
+      // Retry transient 5xx upstream failures up to 2 extra attempts with jittered backoff.
+      const MAX_RETRIES = 2;
+      let attempts = 0;
+      const retryHistory: Array<{ attempt: number; http_status: number; message: string | null }> = [];
+      while (attempts <= MAX_RETRIES) {
+        attempts++;
+        errMsg = null;
+        try {
+          const ctrl = new AbortController();
+          const to = setTimeout(() => ctrl.abort(), Math.max(5, Math.min(run.timeout_seconds || 30, 60)) * 1000);
+          const resp = await fetch(req.url, {
+            method: req.method,
+            headers: req.headers,
+            body: req.body ?? undefined,
+            signal: ctrl.signal,
+          });
+          clearTimeout(to);
+          httpStatus = resp.status;
+          responseText = await resp.text();
+          try { parsed = JSON.parse(responseText); } catch { parsed = null; }
+        } catch (e: any) {
+          httpStatus = 0;
+          errMsg = redact(String(e?.message ?? e), token);
+        }
+        const isTransient = httpStatus === 0 || httpStatus >= 500;
+        if (!isTransient) break;
+        retryHistory.push({
+          attempt: attempts,
+          http_status: httpStatus,
+          message: parsed?.message ?? parsed?.error ?? errMsg,
         });
-        clearTimeout(to);
-        httpStatus = resp.status;
-        responseText = await resp.text();
-        try { parsed = JSON.parse(responseText); } catch { /* keep raw */ }
-      } catch (e: any) {
-        errMsg = redact(String(e?.message ?? e), token);
+        await logRun(admin, run_id, "warn", "sms.send_retry", {
+          phone: rec.phone_normalized, attempt: attempts, max: MAX_RETRIES + 1,
+          http_status: httpStatus, error: errMsg ?? parsed?.message ?? null,
+        });
+        if (attempts > MAX_RETRIES) break;
+        const delay = 250 * attempts + Math.floor(Math.random() * 250);
+        await new Promise((r) => setTimeout(r, delay));
       }
       const latency = Date.now() - t0;
 
@@ -254,23 +277,27 @@ Deno.serve(async (req) => {
       const apiStatus = dataObj?.status ?? parsed?.status ?? null;
       const remarks = dataObj?.remarks ?? parsed?.remarks ?? null;
 
+      const responseWithMeta = {
+        ...(parsed ?? { raw: redact(responseText.slice(0, 4000), token) }),
+        _attempts: attempts,
+        ...(retryHistory.length ? { _retry_history: retryHistory } : {}),
+      };
+      const baseErr = errMsg
+        ?? (parsed?.message ? `HTTP ${httpStatus}: ${parsed.message}` : null)
+        ?? (parsed?.error ? `HTTP ${httpStatus}: ${parsed.error}` : null)
+        ?? (parsed?.data?.[0]?.message ? `HTTP ${httpStatus}: ${parsed.data[0].message}` : null)
+        ?? `HTTP ${httpStatus}`;
       await admin.from("sms_test_results").insert({
         test_run_id: run_id, recipient_id: rec.id,
         phone_original: rec.phone_original, phone_normalized: rec.phone_normalized,
-        attempt_number: 1,
+        attempt_number: attempts,
         status, http_status: httpStatus || null,
         api_status: apiStatus, sms_message_id: sms, campaign_id: camp,
         dlr_code: dlrCode, current_status: currentStatus, remarks,
         latency_ms: latency,
         request_payload: { ...req.payloadForLog, headers: safeHeaders, method: req.method },
-        response_payload: parsed ?? { raw: redact(responseText.slice(0, 4000), token) },
-        last_error: ok
-          ? null
-          : (errMsg
-              ?? (parsed?.message ? `HTTP ${httpStatus}: ${parsed.message}` : null)
-              ?? (parsed?.error ? `HTTP ${httpStatus}: ${parsed.error}` : null)
-              ?? (parsed?.data?.[0]?.message ? `HTTP ${httpStatus}: ${parsed.data[0].message}` : null)
-              ?? `HTTP ${httpStatus}`),
+        response_payload: responseWithMeta,
+        last_error: ok ? null : (attempts > 1 ? `${baseErr} (after ${attempts} attempts)` : baseErr),
       });
       let bodyForLog: any = req.body;
       try { if (req.body) bodyForLog = JSON.parse(req.body); } catch { /* keep raw */ }

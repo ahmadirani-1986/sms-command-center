@@ -237,6 +237,7 @@ function TestRunDetailsPage() {
                   <TableHead>Phone</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>HTTP</TableHead>
+                  <TableHead>Attempts</TableHead>
                   <TableHead>SMS Msg ID</TableHead>
                   <TableHead>Campaign</TableHead>
                   <TableHead>Current</TableHead>
@@ -247,7 +248,7 @@ function TestRunDetailsPage() {
               </TableHeader>
               <TableBody>
                 {results.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">No results yet.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">No results yet.</TableCell></TableRow>
                 ) : results.map((r) => (
                   <>
                     <TableRow key={r.id} className="cursor-pointer hover:bg-muted/30"
@@ -261,24 +262,29 @@ function TestRunDetailsPage() {
                       </TableCell>
                       <TableCell><Badge variant={statusVariant(r.status)}>{r.status}</Badge></TableCell>
                       <TableCell className="font-mono text-xs">{r.http_status ?? "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {r.attempt_number > 1 ? (
+                          <Badge variant="outline" title="Retried after transient upstream failure">{r.attempt_number}×</Badge>
+                        ) : (r.attempt_number ?? 1)}
+                      </TableCell>
                       <TableCell className="font-mono text-xs max-w-[140px] truncate">{r.sms_message_id ?? "—"}</TableCell>
                       <TableCell className="font-mono text-xs max-w-[120px] truncate">{r.campaign_id ?? "—"}</TableCell>
                       <TableCell className="text-xs">{r.current_status ?? "—"}</TableCell>
                       <TableCell className="text-xs">{r.dlr_code ?? "—"}</TableCell>
                       <TableCell className="text-right text-xs tabular-nums">{r.latency_ms ?? "—"}</TableCell>
-                      <TableCell className="text-xs text-destructive max-w-[280px]" title={displayError(r)}>
+                      <TableCell className="text-xs text-destructive max-w-[320px]" title={displayError(r)}>
                         <div className="truncate">{displayError(r)}</div>
                       </TableCell>
                     </TableRow>
                     {expanded === r.id && (
                       <TableRow key={r.id + "-x"} className="bg-muted/20">
                         <TableCell></TableCell>
-                        <TableCell colSpan={9}>
+                        <TableCell colSpan={10}>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 py-2">
                             <Detail title="Request payload">
                               <pre className="text-xs whitespace-pre-wrap break-all">{JSON.stringify(r.request_payload, null, 2)}</pre>
                             </Detail>
-                            <Detail title="Response payload">
+                            <Detail title={`Response payload${r.attempt_number > 1 ? ` (final of ${r.attempt_number} attempts)` : ""}`}>
                               <pre className="text-xs whitespace-pre-wrap break-all">{JSON.stringify(r.response_payload, null, 2)}</pre>
                             </Detail>
                           </div>
