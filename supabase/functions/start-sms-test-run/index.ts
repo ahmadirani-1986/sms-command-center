@@ -277,23 +277,27 @@ Deno.serve(async (req) => {
       const apiStatus = dataObj?.status ?? parsed?.status ?? null;
       const remarks = dataObj?.remarks ?? parsed?.remarks ?? null;
 
+      const responseWithMeta = {
+        ...(parsed ?? { raw: redact(responseText.slice(0, 4000), token) }),
+        _attempts: attempts,
+        ...(retryHistory.length ? { _retry_history: retryHistory } : {}),
+      };
+      const baseErr = errMsg
+        ?? (parsed?.message ? `HTTP ${httpStatus}: ${parsed.message}` : null)
+        ?? (parsed?.error ? `HTTP ${httpStatus}: ${parsed.error}` : null)
+        ?? (parsed?.data?.[0]?.message ? `HTTP ${httpStatus}: ${parsed.data[0].message}` : null)
+        ?? `HTTP ${httpStatus}`;
       await admin.from("sms_test_results").insert({
         test_run_id: run_id, recipient_id: rec.id,
         phone_original: rec.phone_original, phone_normalized: rec.phone_normalized,
-        attempt_number: 1,
+        attempt_number: attempts,
         status, http_status: httpStatus || null,
         api_status: apiStatus, sms_message_id: sms, campaign_id: camp,
         dlr_code: dlrCode, current_status: currentStatus, remarks,
         latency_ms: latency,
         request_payload: { ...req.payloadForLog, headers: safeHeaders, method: req.method },
-        response_payload: parsed ?? { raw: redact(responseText.slice(0, 4000), token) },
-        last_error: ok
-          ? null
-          : (errMsg
-              ?? (parsed?.message ? `HTTP ${httpStatus}: ${parsed.message}` : null)
-              ?? (parsed?.error ? `HTTP ${httpStatus}: ${parsed.error}` : null)
-              ?? (parsed?.data?.[0]?.message ? `HTTP ${httpStatus}: ${parsed.data[0].message}` : null)
-              ?? `HTTP ${httpStatus}`),
+        response_payload: responseWithMeta,
+        last_error: ok ? null : (attempts > 1 ? `${baseErr} (after ${attempts} attempts)` : baseErr),
       });
       let bodyForLog: any = req.body;
       try { if (req.body) bodyForLog = JSON.parse(req.body); } catch { /* keep raw */ }
