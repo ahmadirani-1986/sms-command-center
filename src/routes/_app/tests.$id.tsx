@@ -237,6 +237,7 @@ function TestRunDetailsPage() {
                   <TableHead>Phone</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>HTTP</TableHead>
+                  <TableHead>Attempts</TableHead>
                   <TableHead>SMS Msg ID</TableHead>
                   <TableHead>Campaign</TableHead>
                   <TableHead>Current</TableHead>
@@ -247,7 +248,7 @@ function TestRunDetailsPage() {
               </TableHeader>
               <TableBody>
                 {results.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">No results yet.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">No results yet.</TableCell></TableRow>
                 ) : results.map((r) => (
                   <>
                     <TableRow key={r.id} className="cursor-pointer hover:bg-muted/30"
