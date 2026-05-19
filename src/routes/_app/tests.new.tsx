@@ -71,6 +71,18 @@ function NewTestPage() {
   const [load, setLoad] = useState({ ...DEFAULTS });
   const [creating, setCreating] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [hardCap, setHardCap] = useState<number>(50);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await invokeFn<{ ok: boolean; real_send_hard_cap: number }>("get-sms-config", {});
+        if (data?.real_send_hard_cap && Number.isFinite(data.real_send_hard_cap)) {
+          setHardCap(data.real_send_hard_cap);
+        }
+      } catch { /* keep default */ }
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
