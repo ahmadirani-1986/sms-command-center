@@ -56,6 +56,7 @@ Deno.serve(async (req) => {
     const { data: recipients } = await admin.from("sms_test_recipients").select("*").eq("test_run_id", run_id);
     const valid = (recipients ?? []).filter((r: any) => r.is_valid);
     const eligible = isReal ? valid.filter((r: any) => r.is_whitelisted) : valid;
+    const HARD_CAP = getHardCap();
     const sendCount = Math.min(eligible.length, isReal ? Math.min(run.max_send_limit, HARD_CAP) : run.max_send_limit);
 
     if (sendCount === 0) {
