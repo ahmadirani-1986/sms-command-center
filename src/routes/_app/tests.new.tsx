@@ -431,7 +431,7 @@ function NewTestPage() {
         profile={profile ?? null}
         message={message}
         senderId={senderId.trim()}
-        recipients={recipients.filter((r) => r.valid && r.whitelisted).slice(0, Math.min(hardCap, load.total_request_limit))}
+        recipients={recipients.filter((r) => r.valid && r.whitelisted).slice(0, load.total_request_limit)}
         onClose={() => { setConfirmOpen(false); setPendingRunId(null); }}
         onSent={(runId) => navigate({ to: "/tests/$id", params: { id: runId } })}
         isAdmin={isAdmin}
