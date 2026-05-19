@@ -127,10 +127,11 @@ function NewTestPage() {
   // Sender ID validation (official iMissive contract: senderId)
   const senderError = useMemo(() => {
     const trimmed = senderId.trim();
-    if (mode === "real_send" && !trimmed) return "Sender ID is required for Real Send";
+    if ((mode === "real_send" || mode === "load_test") && apiMode === "profile" && !trimmed)
+      return "Sender ID is required for live sending";
     if (trimmed && !/^[A-Za-z0-9 _-]{1,40}$/.test(trimmed)) return "Sender ID contains invalid characters";
     return null;
-  }, [senderId, mode]);
+  }, [senderId, mode, apiMode]);
 
   const senderNotApprovedWarning = useMemo(() => {
     const trimmed = senderId.trim();
