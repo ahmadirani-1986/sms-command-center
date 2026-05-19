@@ -127,10 +127,11 @@ function NewTestPage() {
   // Sender ID validation (official iMissive contract: senderId)
   const senderError = useMemo(() => {
     const trimmed = senderId.trim();
-    if (mode === "real_send" && !trimmed) return "Sender ID is required for Real Send";
+    if ((mode === "real_send" || mode === "load_test") && apiMode === "profile" && !trimmed)
+      return "Sender ID is required for live sending";
     if (trimmed && !/^[A-Za-z0-9 _-]{1,40}$/.test(trimmed)) return "Sender ID contains invalid characters";
     return null;
-  }, [senderId, mode]);
+  }, [senderId, mode, apiMode]);
 
   const senderNotApprovedWarning = useMemo(() => {
     const trimmed = senderId.trim();
@@ -155,6 +156,50 @@ function NewTestPage() {
     }
     setCreating(true);
     try {
+      // Load Test mode goes to the external runner queue, NOT through the
+      // direct Real Send / Edge Function path. No Confirm Real Send dialog.
+      if (mode === "load_test") {
+        const eligible = recipients.filter((r) => r.valid && r.whitelisted);
+        const sliced = eligible.slice(0, load.total_request_limit);
+        const total = sliced.length;
+        if (total === 0) {
+          toast.error("No eligible (valid + whitelisted) recipients to queue");
+          return;
+        }
+        const confirmation_token =
+          total >= 1000 ? `CONFIRM LARGE REAL SEND ${total}` : `CONFIRM SEND ${total}`;
+        const { data, error } = await invokeFn<{ ok: boolean; job_id: string }>(
+          "create-load-runner-job",
+          {
+            name: name.trim(),
+            api_mode: apiMode,
+            api_profile_id: apiMode === "profile" ? profileId : null,
+            raw_template_id: apiMode === "raw_template" ? templateId : null,
+            sender_id: senderId.trim() || null,
+            message_body: message,
+            recipients: sliced.map((r) => r.raw),
+            requests_per_sec: load.requests_per_sec,
+            concurrency: load.concurrency,
+            batch_size: load.batch_size,
+            max_recipients: total,
+            ramp_up_seconds: load.ramp_up_seconds,
+            stop_on_error_rate_pct: load.auto_stop_error_rate_pct,
+            mode: "real",
+            confirmation_token,
+          },
+        );
+        if (error || !data?.ok) {
+          toast.error(error ? formatInvokeError(error) : "Failed to queue load runner job", {
+            description: error?.reason ?? error?.code,
+            duration: 8000,
+          });
+          return;
+        }
+        toast.success(`Queued load runner job (${total} recipients)`);
+        navigate({ to: "/load-runner" });
+        return;
+      }
+
       const { data, error } = await invokeFn<{ ok: boolean; run_id: string }>("create-test-run", {
         name: name.trim(),
         api_mode: apiMode,
@@ -454,7 +499,11 @@ function NewTestPage() {
               disabled={!canCreate || profileBlockedForOperator}
             >
               {creating && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              {mode === "dry_run" ? "Run dry test" : "Continue to confirmation"}
+              {mode === "dry_run"
+                ? "Run dry test"
+                : mode === "load_test"
+                  ? "Queue load runner job"
+                  : "Continue to confirmation"}
             </Button>
           </div>
         </aside>
