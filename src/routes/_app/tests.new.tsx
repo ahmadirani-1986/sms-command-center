@@ -499,7 +499,11 @@ function NewTestPage() {
               disabled={!canCreate || profileBlockedForOperator}
             >
               {creating && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              {mode === "dry_run" ? "Run dry test" : "Continue to confirmation"}
+              {mode === "dry_run"
+                ? "Run dry test"
+                : mode === "load_test"
+                  ? "Queue load runner job"
+                  : "Continue to confirmation"}
             </Button>
           </div>
         </aside>
