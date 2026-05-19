@@ -52,7 +52,7 @@ const DEFAULTS = {
 };
 
 function NewTestPage() {
-  const { isAdmin, isOperator } = useAuth();
+  const { isAdmin, isOperator, loading: authLoading, rolesLoading, rolesError, user } = useAuth();
   const navigate = useNavigate();
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -225,6 +225,34 @@ function NewTestPage() {
     setRecipientsText((prev) => (prev ? prev + "\n" : "") + extracted.filter(Boolean).join("\n"));
   }
 
+  if (authLoading || rolesLoading) {
+    return (
+      <>
+        <PageHeader title="New test" description="Loading permissions…" />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Checking your role…
+        </div>
+      </>
+    );
+  }
+
+  if (rolesError) {
+    return (
+      <>
+        <PageHeader title="New test" description="Could not load your role." />
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>Role loading failed</AlertTitle>
+          <AlertDescription>
+            <div>{rolesError}</div>
+            {user?.email && <div className="mt-1 text-xs">User: {user.email}</div>}
+          </AlertDescription>
+        </Alert>
+      </>
+    );
+  }
+
   if (!isOperator) {
     return (
       <>
@@ -232,7 +260,14 @@ function NewTestPage() {
         <Alert variant="destructive">
           <ShieldAlert className="h-4 w-4" />
           <AlertTitle>Access denied</AlertTitle>
-          <AlertDescription>You need operator permissions to create test runs.</AlertDescription>
+          <AlertDescription>
+            <div>You need operator or admin permissions to create test runs.</div>
+            {user?.email && (
+              <div className="mt-1 text-xs">
+                Signed in as <span className="font-mono">{user.email}</span> (no operator/admin role)
+              </div>
+            )}
+          </AlertDescription>
         </Alert>
       </>
     );
