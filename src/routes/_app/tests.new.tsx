@@ -52,7 +52,7 @@ const DEFAULTS = {
 };
 
 function NewTestPage() {
-  const { isAdmin, isOperator } = useAuth();
+  const { isAdmin, isOperator, loading: authLoading, rolesLoading, rolesError, user } = useAuth();
   const navigate = useNavigate();
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
