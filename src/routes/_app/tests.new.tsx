@@ -406,11 +406,15 @@ function NewTestPage() {
                 </Field>
               ))}
             </div>
-            {mode !== "dry_run" && load.total_request_limit > 50 && (
+            {mode !== "dry_run" && load.total_request_limit > hardCap && (
               <p className="text-xs text-warning mt-2">
-                Real send hard cap is 50. Only the first 50 eligible recipients will be sent.
+                Real send hard cap is {hardCap}. Only the first {hardCap} eligible recipients will be sent.
               </p>
             )}
+            <p className="text-xs text-muted-foreground mt-2">
+              Active real-send hard cap: <span className="font-mono">{hardCap}</span>
+              {" "}(server-enforced via <code className="font-mono">REAL_SEND_HARD_CAP</code>)
+            </p>
           </Section>
         </div>
 
