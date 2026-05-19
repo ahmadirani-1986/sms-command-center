@@ -71,6 +71,18 @@ function NewTestPage() {
   const [load, setLoad] = useState({ ...DEFAULTS });
   const [creating, setCreating] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [hardCap, setHardCap] = useState<number>(50);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await invokeFn<{ ok: boolean; real_send_hard_cap: number }>("get-sms-config", {});
+        if (data?.real_send_hard_cap && Number.isFinite(data.real_send_hard_cap)) {
+          setHardCap(data.real_send_hard_cap);
+        }
+      } catch { /* keep default */ }
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -394,11 +406,15 @@ function NewTestPage() {
                 </Field>
               ))}
             </div>
-            {mode !== "dry_run" && load.total_request_limit > 50 && (
+            {mode !== "dry_run" && load.total_request_limit > hardCap && (
               <p className="text-xs text-warning mt-2">
-                Real send hard cap is 50. Only the first 50 eligible recipients will be sent.
+                Real send hard cap is {hardCap}. Only the first {hardCap} eligible recipients will be sent.
               </p>
             )}
+            <p className="text-xs text-muted-foreground mt-2">
+              Active real-send hard cap: <span className="font-mono">{hardCap}</span>
+              {" "}(server-enforced via <code className="font-mono">REAL_SEND_HARD_CAP</code>)
+            </p>
           </Section>
         </div>
 
@@ -412,6 +428,9 @@ function NewTestPage() {
               <Row k="Valid" v={String(recipients.filter((r) => r.valid).length)} />
               <Row k="Whitelisted" v={String(recipients.filter((r) => r.whitelisted).length)} />
               <Row k="Eligible" v={String(eligibleCount)} highlight />
+              {mode !== "dry_run" && (
+                <Row k="Hard cap" v={String(hardCap)} />
+              )}
               <Row k="Encoding" v={segInfo.encoding} />
               <Row k="Segments / msg" v={String(segInfo.segments)} />
               <Row k="Estimated units" v={String(estimatedUnits)} />
@@ -434,7 +453,7 @@ function NewTestPage() {
         profile={profile ?? null}
         message={message}
         senderId={senderId.trim()}
-        recipients={recipients.filter((r) => r.valid && r.whitelisted).slice(0, Math.min(50, load.total_request_limit))}
+        recipients={recipients.filter((r) => r.valid && r.whitelisted).slice(0, Math.min(hardCap, load.total_request_limit))}
         onClose={() => { setConfirmOpen(false); setPendingRunId(null); }}
         onSent={(runId) => navigate({ to: "/tests/$id", params: { id: runId } })}
         isAdmin={isAdmin}
