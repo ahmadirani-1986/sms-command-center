@@ -409,9 +409,6 @@ function NewTestPage() {
               <Row k="Valid" v={String(recipients.filter((r) => r.valid).length)} />
               <Row k="Whitelisted" v={String(recipients.filter((r) => r.whitelisted).length)} />
               <Row k="Eligible" v={String(eligibleCount)} highlight />
-              {mode !== "dry_run" && (
-                <Row k="Hard cap" v={String(hardCap)} />
-              )}
               <Row k="Encoding" v={segInfo.encoding} />
               <Row k="Segments / msg" v={String(segInfo.segments)} />
               <Row k="Estimated units" v={String(estimatedUnits)} />
